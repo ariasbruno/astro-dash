@@ -175,9 +175,9 @@ function createShip(s, x, y, id, color) {
   const glow = s.add.graphics().fillStyle(color, 0.15).fillCircle(0, 0, 15);
   
   c.add([glow, reactor, wingLights, g]); s.physics.add.existing(c);
-  c.body.setDrag(400).setMaxVelocity(350).setCircle(10, -10, -10).setCollideWorldBounds(true);
+  c.body.setDrag(2000).setMaxVelocity(1200).setCircle(10, -10, -10).setCollideWorldBounds(true);
   
-  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, lastHit: 0, color, shipColor: COLORS.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
+  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: COLORS.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
 
   s.ships.add(c); return c;
 }
@@ -193,9 +193,12 @@ function updateShips(s, time, delta) {
     const isSolo = s.state.mode === 'solo' && p.ship === s.p1;
     let vx = (held(s, p.r) || (isSolo && held(s, 'P2_R')) ? 1 : 0) - (held(s, p.l) || (isSolo && held(s, 'P2_L')) ? 1 : 0);
     let vy = (held(s, p.d) || (isSolo && held(s, 'P2_D')) ? 1 : 0) - (held(s, p.u) || (isSolo && held(s, 'P2_U')) ? 1 : 0);
+    const speed = b.speed;
     if (vx !== 0 || vy !== 0) {
-      const a = Math.atan2(vy, vx); s.physics.velocityFromRotation(a, 320, b.velocity);
-      p.ship.rotation = a; if (time % 60 < 20) spawnTrail(s, p.ship);
+      const a = Math.atan2(vy, vx); 
+      p.ship.rotation = a; 
+      if (speed < 400) s.physics.velocityFromRotation(a, 320, b.velocity);
+      if (time % 60 < 20) spawnTrail(s, p.ship);
     }
     
     // Color Fire Logic (Buttons 1, 2, 3)
@@ -229,14 +232,13 @@ function updateShips(s, time, delta) {
     }
     if (curE >= 50) p.ship.setData('overheated', false);
 
-    // Dodge Logic (Buttons 4, 5)
-    const dL_triggered = consume(s, isSolo ? [p.dL, 'P2_4'] : [p.dL]), dR_triggered = consume(s, isSolo ? [p.dR, 'P2_5'] : [p.dR]);
-    if (time > p.ship.getData('lastDash')) {
-      let dDir = 0; if (dL_triggered) dDir = -1; else if (dR_triggered) dDir = 1;
-      if (dDir !== 0) {
-        s.physics.velocityFromRotation(p.ship.rotation + (dDir * Math.PI/2), 1000, b.velocity);
-        p.ship.setData('lastDash', time + 1400); playSfx(s, 'dash'); explode(s, p.ship.x, p.ship.y, COLORS.dodge, 4);
-      }
+    // Boost Logic (Button 4)
+    const boostTriggered = consume(s, isSolo ? [p.dL, 'P2_4'] : [p.dL]);
+    if (boostTriggered && time > p.ship.getData('lastDash')) {
+      s.physics.velocityFromRotation(p.ship.rotation, 1200, b.velocity);
+      p.ship.setData('lastDash', time + 3000); 
+      p.ship.setData('boostUntil', time + 200);
+      playSfx(s, 'dash'); explode(s, p.ship.x, p.ship.y, COLORS.dodge, 4);
     }
     
     // Special / Shield Logic (Button 6)
@@ -796,7 +798,7 @@ function updateHud(s, ship, time) {
   g.lineStyle(1, 0x888888, 0.4).strokeRect(ox, 48, 60, 10);
   if (dReady) g.fillStyle(COLORS.dodge, 0.8).fillRect(ox + 2, 50, 56, 6);
   else {
-    const pct = 1 - (ld - time) / 1400;
+    const pct = 1 - (ld - time) / 3000;
     g.fillStyle(0x444444, 0.8).fillRect(ox + 2, 50, 56 * pct, 6);
   }
   
@@ -1326,7 +1328,7 @@ function showHelp(s) {
   s.scrGeneric.t.setText('OPERATIONAL INTEL').setFontSize(48).setY(80);
   const c = s.scrGeneric.c;
   
-  const ctrl = s.add.text(W/2, 140, 'JOYSTICK: MOVE | BTN 1-3: FIRE | BTN 4-5: DODGE | BTN 6: SPECIAL', { font: 'bold 13px monospace', fill: '#888' }).setOrigin(0.5);
+  const ctrl = s.add.text(W/2, 140, 'JOYSTICK: MOVE | BTN 1-3: FIRE | BTN 4: BOOST | BTN 6: SPECIAL', { font: 'bold 13px monospace', fill: '#888' }).setOrigin(0.5);
   c.add(ctrl);
 
   const items = [
