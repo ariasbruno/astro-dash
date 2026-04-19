@@ -13,6 +13,8 @@ In the year 2142, the Core Sector is a graveyard of industrial debris and volati
 - **Solo Survival Mode**: Face increasingly intense waves of meteors and the dreaded Sector Bosses.
 - **1v1 Duel Mode**: Battle a rival pilot in a test of reflexes and tactical maneuvering.
 - **Color-Sync Combat**: Align your weapon frequency with hazards to pierce through dense meteor clusters.
+- **Inertial Drifting**: Activate the tactical boost to slide through space, allowing you to aim and fire in any direction while maintaining forward momentum.
+- **Elite Interceptor Boss**: Face the dreaded Interceptor ship every 3 rounds in survival mode. It's immune to hazards and its own missiles—only your skill can take it down.
 - **Scavenger OS UI**: A high-fidelity, industrial-themed interface designed for maximum tactical awareness.
 - **Procedural Powerups**: Hack the sector for Missiles, Shields, Flares, and Energy Overdrive.
 
@@ -24,7 +26,8 @@ Designed for authentic arcade hardware. Never settle for default inputs.
 | :--- | :--- | :--- | :--- |
 | **Joystick** | Movement | `W/A/S/D` | `Arrows` |
 | **BTN 1, 2, 3** | Primary Fire | `U, I, O` | `R, T, Y` |
-| **BTN 4, 5** | Lateral Dodge | `J, K` | `F, G` |
+| **BTN 4** | Inertial Boost | `J` | `F` |
+| **BTN 5** | -- UNUSED -- | `K` | `G` |
 | **BTN 6** | Special Weapon | `L` | `H` |
 | **START** | Begin Mission | `Enter` | `2` |
 

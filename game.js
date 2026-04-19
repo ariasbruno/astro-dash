@@ -1354,7 +1354,7 @@ function showHelp(s) {
     c.add([name, desc]);
   });
 
-  const tip = s.add.text(W/2, H - 60, 'TIP: MATCH BULLET COLOR WITH METEOR TO PIERCE THROUGH IT!', { font: 'bold 13px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5);
+  const tip = s.add.text(W/2, H - 60, 'TIP: BOOST ENABLES INERTIAL DRIFT! ROTATE AND FIRE WHILE SLIDING.', { font: 'bold 13px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5);
   c.add(tip);
 }
 
