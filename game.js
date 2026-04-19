@@ -594,11 +594,25 @@ function spawnBoss(s) {
   boss.setData({ hp: 60, dead: false });
   s.enemies.add(boss);
   
+  // Life: Engine Trail
+  s.time.addEvent({ delay: 50, loop: true, callback: () => {
+    if (!boss.active || boss.getData('dead')) return;
+    const t = s.add.circle(boss.x + 20, boss.y + 50 + (Math.random()-0.5)*20, 4 + Math.random()*8, nRed, 0.4);
+    s.tweens.add({ targets: t, x: boss.x - 100, alpha: 0, scale: 0.1, duration: 400, onComplete: () => t.destroy() });
+  }});
+
+  // Life: Dynamic tilt based on Y velocity
+  s.time.addEvent({ delay: 16, loop: true, callback: () => {
+    if (!boss.active || boss.getData('dead')) return;
+    const vy = boss.body.velocity.y;
+    boss.rotation = Phaser.Math.Angle.RotateTo(boss.rotation, vy * 0.001, 0.02);
+  }});
+
   // Flicker effect
   s.time.addEvent({ delay: 50, loop: true, callback: () => { if(boss.active) boss.alpha = Math.random() > 0.95 ? 0.6 : 1; } });
 
-  const tx = s.tweens.add({ targets: boss, x: W + 150, duration: 5000, ease: 'Linear', onComplete: () => { if(boss.active) boss.destroy(); } });
-  const ty = s.tweens.add({ targets: boss, y: startY + 70, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  const tx = s.tweens.add({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { if(boss.active) boss.destroy(); } });
+  const ty = s.tweens.add({ targets: boss, y: startY + 120, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   boss.setData('tweens', [tx, ty]);
 
   const missileCount = s.state.round / 3;
@@ -692,9 +706,16 @@ function dmgEnemy(s, enemy, amt, owner) {
   const hp = enemy.getData('hp') - amt;
   enemy.setData('hp', hp);
   
-  // Flash effect
+  // Flash & Shake effect
   enemy.setAlpha(0.5);
-  s.time.delayedCall(50, () => { if(enemy.active) enemy.setAlpha(1); });
+  const shakeX = (Math.random()-0.5)*10, shakeY = (Math.random()-0.5)*10;
+  enemy.x += shakeX; enemy.y += shakeY;
+  s.time.delayedCall(50, () => { 
+    if(enemy.active) {
+      enemy.setAlpha(1); 
+      enemy.x -= shakeX; enemy.y -= shakeY;
+    }
+  });
   playSfx(s, 'hit');
 
   if (hp <= 0) {
@@ -1006,10 +1027,11 @@ function createNameEntryScreen(s) {
   const underline = s.add.graphics().lineStyle(4, COLORS.accent).lineBetween(-25, 40, 25, 40);
   const cursor = s.add.container(W/2 - 60, H/2).add(underline);
   
-  const help = s.add.text(W/2, H-120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM & SAVE', { font: 'bold 16px monospace', fill: c2s(COLORS.stable), align: 'center' }).setOrigin(0.5);
+  const confirmMsg = s.add.text(W/2, H/2 + 80, '>>> CONFIRM NAME? [START] YES / [ACTION] EDIT <<<', { font: 'bold 18px monospace', fill: '#ffcc00' }).setOrigin(0.5).setVisible(false);
+  const help = s.add.text(W/2, H-120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM NAME', { font: 'bold 16px monospace', fill: c2s(COLORS.stable), align: 'center' }).setOrigin(0.5);
   
-  c.add([t1, t2, ...charTexts, cursor, help]);
-  return { c, chars: charTexts, cursor, t1 };
+  c.add([t1, t2, ...charTexts, cursor, confirmMsg, help]);
+  return { c, chars: charTexts, cursor, t1, help, confirmMsg };
 }
 
 function createStartScreen(s) {
@@ -1272,8 +1294,10 @@ function endMatch(s) {
 
 function showNameEntry(s, winner, score, timeStr) {
   s.state.phase = 'nameEntry';
-  s.state.nameEntry = { name: ['A','A','A'], idx: 0, cIdx: 0, winner, score, timeStr, cd: 0 };
+  s.state.nameEntry = { name: ['A','A','A'], idx: 0, cIdx: 0, winner, score, timeStr, cd: 0, confirming: false };
   s.scrName.c.setVisible(true);
+  s.scrName.confirmMsg.setVisible(false);
+  s.scrName.help.setVisible(true);
   s.scrName.t1.setText(s.state.mode === 'solo' ? 'NEW RECORD DETECTED' : `${winner.toUpperCase()} ACED IT!`);
   updateNameEntryUi(s);
 }
@@ -1282,9 +1306,17 @@ function updateNameEntryUi(s) {
   const e = s.state.nameEntry;
   s.scrName.chars.forEach((t, i) => {
     t.setText(e.name[i]);
-    t.setFill(i === e.idx ? c2s(COLORS.accent) : '#fff');
+    t.setFill(e.confirming ? '#ffcc00' : (i === e.idx ? c2s(COLORS.accent) : '#fff'));
+    if (e.confirming) {
+       t.setAlpha(0.6 + Math.sin(Date.now()/100)*0.4);
+    } else {
+       t.setAlpha(1);
+    }
   });
   s.scrName.cursor.setX(W/2 - 60 + e.idx*60);
+  s.scrName.cursor.setVisible(!e.confirming);
+  s.scrName.confirmMsg.setVisible(e.confirming);
+  s.scrName.help.setVisible(!e.confirming);
 }
 
 function handleNameEntry(s, time) {
@@ -1292,6 +1324,28 @@ function handleNameEntry(s, time) {
   const dy = (held(s, 'P1_D') || held(s, 'P2_D') ? 1 : 0) - (held(s, 'P1_U') || held(s, 'P2_U') ? 1 : 0);
   const dx = (held(s, 'P1_R') || held(s, 'P2_R') ? 1 : 0) - (held(s, 'P1_L') || held(s, 'P2_L') ? 1 : 0);
   const ok = consume(s, ['START1', 'START2']);
+  const cancel = consume(s, ['P1_1', 'P1_2', 'P1_3', 'P2_1', 'P2_2', 'P2_3']);
+
+  if (e.confirming) {
+    if (cancel || dy !== 0 || dx !== 0) {
+      e.confirming = false;
+      e.cd = time + 200;
+      playSfx(s, 'click');
+      updateNameEntryUi(s);
+      return;
+    }
+    if (ok) {
+      saveHighScore(e.name.join(''), e.score, e.timeStr, s.state.mode).then(hs => {
+        if (s.state.mode === 'solo') s.state.highScoresSolo = hs;
+        else s.state.highScoresDuel = hs;
+        s.scrName.c.setVisible(false);
+        showStartScreen(s);
+      });
+      playSfx(s, 'orb');
+      e.cd = time + 1000;
+    }
+    return;
+  }
 
   if (dy !== 0) {
     e.cIdx = Phaser.Math.Wrap(e.cIdx + dy, 0, CHARS.length);
@@ -1304,14 +1358,10 @@ function handleNameEntry(s, time) {
     e.cd = time + 200; playSfx(s, 'dash'); updateNameEntryUi(s);
   }
   if (ok) {
-    saveHighScore(e.name.join(''), e.score, e.timeStr, s.state.mode).then(hs => {
-      if (s.state.mode === 'solo') s.state.highScoresSolo = hs;
-      else s.state.highScoresDuel = hs;
-      s.scrName.c.setVisible(false);
-      showStartScreen(s);
-    });
-    playSfx(s, 'orb');
-    e.cd = time + 1000;
+    e.confirming = true;
+    e.cd = time + 300;
+    playSfx(s, 'dash');
+    updateNameEntryUi(s);
   }
 }
 
