@@ -1,5 +1,6 @@
 {
-  "game_name": "<FILL THIS>",
-  "description": "<FILL THIS>",
-  "player_mode": "two_player"
+  "game_name": "Astro Dash",
+  "description": "High-speed space survival and combat. Outlast the meteor storms solo or duel a rival pilot in the gritty Core Sector.",
+  "player_mode": "two_player",
+  "version": "1.0.0"
 }

@@ -1,7 +1,7 @@
 {
-  "name": "platanus-hack-26-arcade",
+  "name": "astro-dash",
   "version": "1.0.0",
-  "description": "Phaser arcade game challenge starter kit",
+  "description": "High-speed space survival and combat",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3001",
