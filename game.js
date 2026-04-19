@@ -355,13 +355,31 @@ function updateMissiles(s, time) {
     if (!m || !m.active || !m.body) return;
     if (time > m.getData('expiry')) { explode(s, m.x, m.y, COLORS.missile, 15); playSfx(s, 'hit'); safeDestroy(m); return; }
     
-    let target = m.getData('target');
-    if (!target || !target.active) target = s.p1;
-    if (!target || !target.active) { safeDestroy(m); return; }
+    const ownerId = m.getData('owner');
+    let target = null;
+    let minDist = Infinity;
 
+    // Scan for nearest active threat (Opponent ships or Interceptors)
+    s.ships.children.each(ship => {
+      if (ship.active && !ship.getData('dead') && ship.getData('id') !== ownerId) {
+        const d = Phaser.Math.Distance.Between(m.x, m.y, ship.x, ship.y);
+        if (d < minDist) { minDist = d; target = ship; }
+      }
+    });
+
+    s.enemies.children.each(enemy => {
+      if (enemy.active && !enemy.getData('dead') && enemy.getData('id') !== ownerId) {
+        const d = Phaser.Math.Distance.Between(m.x, m.y, enemy.x, enemy.y);
+        if (d < minDist) { minDist = d; target = enemy; }
+      }
+    });
+
+    // Check for flare distractions
     s.flares.children.each(f => { 
       if (f && f.active && Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) < 350) target = f; 
     });
+
+    if (!target) return;
 
     const angle = Phaser.Math.Angle.Between(m.x, m.y, target.x, target.y);
     const turnRate = m.getData('turnRate') || 0.1;
@@ -591,7 +609,7 @@ function spawnBoss(s) {
   boss.add([eng, g, eye]);
   s.physics.add.existing(boss);
   boss.body.setCircle(65, 22, -15);
-  boss.setData({ hp: 60, dead: false });
+  boss.setData({ id: 'boss', hp: 60, dead: false });
   s.enemies.add(boss);
   
   // Life: Engine Trail
