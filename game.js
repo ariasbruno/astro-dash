@@ -73,6 +73,7 @@ function create() {
 
   s.ships = s.add.group(); s.bullets = s.add.group(); s.meteors = s.add.group(); 
   s.orbs = s.add.group(); s.powerups = s.add.group(); s.missiles = s.add.group(); s.flares = s.add.group();
+  s.enemies = s.add.group();
 
   s.p1 = createShip(s, 150, H / 2, 'p1', COLORS.p1);
   s.p2 = createShip(s, W - 150, H / 2, 'p2', COLORS.p2);
@@ -85,6 +86,10 @@ function create() {
   s.physics.add.overlap(s.missiles, s.ships, hitShipMissile, null, s);
   s.physics.add.overlap(s.missiles, s.meteors, hitMeteor, null, s);
   s.physics.add.overlap(s.missiles, s.flares, hitFlareMissile, null, s);
+  s.physics.add.overlap(s.bullets, s.enemies, hitEnemy, null, s);
+  s.physics.add.overlap(s.missiles, s.enemies, hitEnemyMissile, null, s);
+  s.physics.add.overlap(s.ships, s.enemies, crashEnemy, null, s);
+  s.physics.add.overlap(s.enemies, s.meteors, hitEnemyMeteor, null, s);
 
   initUi(s); initControls(s);
   s.add.container(0, 0).add(createScanlines(s)).setDepth(1000).setScrollFactor(0);
@@ -582,12 +587,17 @@ function spawnBoss(s) {
   s.tweens.add({ targets: eye, alpha: 0.2, duration: 200, yoyo: true, repeat: -1 });
   
   boss.add([eng, g, eye]);
+  s.physics.add.existing(boss);
+  boss.body.setCircle(65, 22, -15);
+  boss.setData({ hp: 60, dead: false });
+  s.enemies.add(boss);
   
   // Flicker effect
-  s.time.addEvent({ delay: 50, loop: true, callback: () => { boss.alpha = Math.random() > 0.95 ? 0.6 : 1; } });
+  s.time.addEvent({ delay: 50, loop: true, callback: () => { if(boss.active) boss.alpha = Math.random() > 0.95 ? 0.6 : 1; } });
 
-  s.tweens.add({ targets: boss, x: W + 150, duration: 5000, ease: 'Linear', onComplete: () => boss.destroy() });
-  s.tweens.add({ targets: boss, y: startY + 70, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  const tx = s.tweens.add({ targets: boss, x: W + 150, duration: 5000, ease: 'Linear', onComplete: () => { if(boss.active) boss.destroy(); } });
+  const ty = s.tweens.add({ targets: boss, y: startY + 70, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  boss.setData('tweens', [tx, ty]);
 
   const missileCount = s.state.round / 3;
   const duration = 5000;
@@ -652,6 +662,51 @@ function hitShipMissile(missile, ship) {
   safeDestroy(missile); dmgShip(this, ship, 30); explode(this, missile.x, missile.y, COLORS.missile, 15); 
 }
 
+function hitEnemy(bullet, enemy) {
+  if (!bullet.active || bullet.getData('owner') === 'boss') return;
+  const owner = bullet.getData('owner');
+  safeDestroy(bullet);
+  dmgEnemy(this, enemy, 10, owner);
+  explode(this, bullet.x, bullet.y, 0xff3344, 5);
+}
+
+function hitEnemyMissile(missile, enemy) {
+  if (!missile.active || missile.getData('owner') === 'boss') return;
+  const owner = missile.getData('owner');
+  safeDestroy(missile);
+  dmgEnemy(this, enemy, 30, owner);
+  explode(this, missile.x, missile.y, COLORS.missile, 15);
+}
+
+function hitEnemyMeteor(enemy, meteor) {
+  if (!meteor.active || enemy.getData('dead')) return;
+  explode(this, meteor.x, meteor.y, meteor.getData('color') || COLORS.debris, 5);
+  safeDestroy(meteor);
+  playSfx(this, 'hit');
+}
+
+function dmgEnemy(s, enemy, amt, owner) {
+  if (enemy.getData('dead')) return;
+  const hp = enemy.getData('hp') - amt;
+  enemy.setData('hp', hp);
+  
+  // Flash effect
+  enemy.setAlpha(0.5);
+  s.time.delayedCall(50, () => { if(enemy.active) enemy.setAlpha(1); });
+  playSfx(s, 'hit');
+
+  if (hp <= 0) {
+    enemy.setData('dead', true);
+    const { x, y } = enemy;
+    const tweens = enemy.getData('tweens');
+    if (tweens) tweens.forEach(t => t.stop());
+    
+    addPoints(s, owner, 1000, x + 80, y + 50);
+    spectacularExplosion(s, x + 80, y + 50, 0xff3344);
+    enemy.destroy();
+  }
+}
+
 function hitMeteor(bullet, meteor) {
   if (!meteor.active || (bullet && !bullet.active)) return;
   if (bullet && bullet.getData('color') === meteor.getData('color')) return;
@@ -679,6 +734,15 @@ function crashShip(ship, meteor) {
   explode(this, meteor.x, meteor.y, mColor || COLORS.debris, 5); safeDestroy(meteor); playSfx(this, 'hit');
 }
 
+
+function crashEnemy(ship, enemy) {
+  if (ship.getData('dead') || enemy.getData('dead') || this.time.now < ship.getData('lastHit') + 200) return;
+  ship.setData('lastHit', this.time.now);
+  dmgShip(this, ship, 25);
+  dmgEnemy(this, enemy, 20, ship.getData('id'));
+  explode(this, ship.x, ship.y, 0xff3344, 10);
+  playSfx(this, 'hit');
+}
 
 function dmgShip(s, ship, amt) {
   if (ship.getData('dead')) return;
@@ -1132,7 +1196,7 @@ function resetGame(s) {
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
   });
 
-  s.bullets.clear(true, true); s.meteors.clear(true, true); s.orbs.clear(true, true); s.powerups.clear(true, true); s.missiles.clear(true, true); s.flares.clear(true, true);
+  s.bullets.clear(true, true); s.meteors.clear(true, true); s.orbs.clear(true, true); s.powerups.clear(true, true); s.missiles.clear(true, true); s.flares.clear(true, true); s.enemies.clear(true, true);
   if (s.hud.clearMsg) { s.hud.clearMsg.destroy(); s.hud.clearMsg = null; }
   if (s.hud.showerAlert) { s.hud.showerAlert.clear(); }
   
