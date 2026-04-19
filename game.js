@@ -92,7 +92,7 @@ function create() {
   s.physics.add.overlap(s.enemies, s.meteors, hitEnemyMeteor, null, s);
 
   initUi(s); initControls(s);
-  s.add.container(0, 0).add(createScanlines(s)).setDepth(1000).setScrollFactor(0);
+  s.add.container(0, 0).add(createScanlines(s)).setDepth(2000).setScrollFactor(0);
   loadHighScores().then(hs => { 
     s.state.highScoresSolo = hs.solo; 
     s.state.highScoresDuel = hs.duel; 
@@ -961,8 +961,8 @@ function initUi(s) {
   const f = { font: 'bold 18px monospace' }, sf = { font: '12px monospace' };
   
   // HUD Containers for P1 and P2
-  const p1H = s.add.container(25, 25);
-  const p2H = s.add.container(W - 25, 25);
+  const p1H = s.add.container(25, 25).setDepth(500);
+  const p2H = s.add.container(W - 25, 25).setDepth(500);
   
   s.hud = {
     p1: { 
@@ -981,7 +981,7 @@ function initUi(s) {
       sp: s.add.text(0, 85, '', { ...sf, fill: '#ffcc00' }).setOrigin(1,0),
       score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: '#ffcc00' }).setOrigin(1,0)
     },
-    timer: s.add.text(W/2, 25, '', { font: 'bold 16px monospace', fill: '#888' }).setOrigin(0.5)
+    timer: s.add.text(W/2, 25, '', { font: 'bold 16px monospace', fill: '#888' }).setOrigin(0.5).setDepth(500)
   };
   
   p1H.add([s.hud.p1.hp, s.hud.p1.enBar, s.hud.p1.dodgeInd, s.hud.p1.shInd, s.hud.p1.sp, s.hud.p1.score]);
@@ -994,7 +994,7 @@ function initUi(s) {
 }
 
 function createModeSelectScreen(s) {
-  const c = s.add.container(0, 0).setDepth(105).setVisible(false);
+  const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W/2, H/2, W, H, COLORS.overlay, 1));
   c.add(s.add.text(W/2, 120, 'SELECT OPERATION', { font: 'bold 42px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5));
   
@@ -1018,7 +1018,7 @@ function createModeSelectScreen(s) {
 }
 
 function createNameEntryScreen(s) {
-  const c = s.add.container(0, 0).setDepth(110).setVisible(false);
+  const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W/2, H/2, W, H, COLORS.overlay, 0.98));
   const t1 = s.add.text(W/2, 120, 'NEW HIGH SCORE!', { font: 'bold 42px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5);
   const t2 = s.add.text(W/2, 180, 'PILOT IDENTIFICATION', { font: '24px monospace', fill: '#fff' }).setOrigin(0.5);
@@ -1035,7 +1035,7 @@ function createNameEntryScreen(s) {
 }
 
 function createStartScreen(s) {
-  const c = s.add.container(0, 0).setDepth(100).setVisible(false);
+  const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W/2, H/2, W, H, COLORS.overlay, 1));
   
   // OS Header
@@ -1114,7 +1114,7 @@ function drawHazardStripes(s, container, x, y, w, h) {
 }
 
 function createOverlay(s, title, buttons) {
-  const c = s.add.container(0, 0).setDepth(100).setVisible(false);
+  const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W/2, H/2, W, H, COLORS.overlay, 1));
   const tText = s.add.text(W/2, 140, title, { font: 'bold 64px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5);
   c.add(tText);
