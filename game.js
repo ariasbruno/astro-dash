@@ -609,25 +609,62 @@ function spawnBoss(s) {
   boss.add([eng, g, eye]);
   s.physics.add.existing(boss);
   boss.body.setCircle(65, 22, -15);
-  boss.setData({ id: 'boss', hp: 60, dead: false });
+  const bossHp = 150 + Math.floor((s.state.round - 3) / 3) * 50;
+  boss.setData({ id: 'boss', hp: bossHp, dead: false });
   s.enemies.add(boss);
   
-  // Life: Engine Trail
+  // Life: Engine Trail, Side Thrusters & Critical Damage
   s.time.addEvent({ delay: 50, loop: true, callback: () => {
     if (!boss.active || boss.getData('dead')) return;
+    const vy = boss.body.velocity.y, hp = boss.getData('hp');
+    
+    // Main Trail
     const t = s.add.circle(boss.x + 20, boss.y + 50 + (Math.random()-0.5)*20, 4 + Math.random()*8, nRed, 0.4);
     s.tweens.add({ targets: t, x: boss.x - 100, alpha: 0, scale: 0.1, duration: 400, onComplete: () => t.destroy() });
+
+    // Side thrusters for vertical movement
+    if (Math.abs(vy) > 20) {
+      const py = vy > 0 ? -30 : 130; 
+      const st = s.add.circle(boss.x + 30, boss.y + py, 3 + Math.random()*3, 0x00ccff, 0.6);
+      s.tweens.add({ targets: st, x: boss.x - 20, alpha: 0, duration: 200, onComplete: () => st.destroy() });
+    }
+
+    // Critical sparks
+    if (hp < 30 && Math.random() > 0.7) {
+      explode(s, boss.x + Math.random()*150, boss.y + Math.random()*100, 0xffaa00, 2);
+    }
   }});
 
   // Life: Dynamic tilt based on Y velocity
   s.time.addEvent({ delay: 16, loop: true, callback: () => {
-    if (!boss.active || boss.getData('dead')) return;
+    if (!boss.active || boss.getData('dead') || boss.getData('tilting')) return;
     const vy = boss.body.velocity.y;
     boss.rotation = Phaser.Math.Angle.RotateTo(boss.rotation, vy * 0.001, 0.02);
   }});
 
-  // Flicker effect
-  s.time.addEvent({ delay: 50, loop: true, callback: () => { if(boss.active) boss.alpha = Math.random() > 0.95 ? 0.6 : 1; } });
+  // Flicker effect & Burst Attack
+  s.time.addEvent({ delay: 50, loop: true, callback: () => { 
+    if(!boss.active) return;
+    boss.alpha = Math.random() > 0.95 ? 0.6 : 1; 
+  }});
+
+  s.time.addEvent({ delay: 2500, loop: true, callback: () => {
+    if (!boss.active || boss.getData('dead') || s.state.phase !== 'playing') return;
+    const dist = Phaser.Math.Distance.Between(boss.x + 80, boss.y + 50, s.p1.x, s.p1.y);
+    if (dist < 450) {
+      for (let i = 0; i < 3; i++) {
+        s.time.delayedCall(i * 120, () => {
+          if (!boss.active || boss.getData('dead')) return;
+          const b = s.add.circle(boss.x + 160, boss.y + 50, 4, nRed);
+          s.physics.add.existing(b);
+          const angle = Phaser.Math.Angle.Between(boss.x + 160, boss.y + 50, s.p1.x, s.p1.y);
+          s.physics.velocityFromRotation(angle, 550, b.body.velocity);
+          b.setData({ owner: 'boss', color: nRed });
+          s.bullets.add(b); playSfx(s, 'pew');
+        });
+      }
+    }
+  }});
 
   const tx = s.tweens.add({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { if(boss.active) boss.destroy(); } });
   const ty = s.tweens.add({ targets: boss, y: startY + 120, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -728,6 +765,20 @@ function dmgEnemy(s, enemy, amt, owner) {
   enemy.setAlpha(0.5);
   const shakeX = (Math.random()-0.5)*10, shakeY = (Math.random()-0.5)*10;
   enemy.x += shakeX; enemy.y += shakeY;
+
+  // Aggressive Tilt Dodge on heavy hit
+  if (amt >= 30) {
+    const side = Math.random() > 0.5 ? 1 : -1;
+    enemy.setData('tilting', true);
+    s.tweens.add({ 
+      targets: enemy, 
+      angle: 35 * side, 
+      duration: 150, 
+      yoyo: true, 
+      ease: 'Quad.easeOut',
+      onComplete: () => { if(enemy.active) enemy.setData('tilting', false); }
+    });
+  }
   s.time.delayedCall(50, () => { 
     if(enemy.active) {
       enemy.setAlpha(1); 
