@@ -1,17 +1,30 @@
 // Platanus Hack 26 — Astro Dash
 // Top-down 1v1 space combat dogfighter.
-// Features: 8-way movement, meteor hazards, health orbs, energy bursts, Homing Missiles & Flares.
+
+/** 
+ * OPTIMIZATION DICTIONARY (For 50KB Constraint)
+ * -------------------------------------------
+ * C      : Object containing all hex color codes (was COLORS).
+ * rnd(m) : Helper for Math.random() * m. Defaults to 0-1 if m is null.
+ * rB(a,b): Helper for Phaser.Math.Between(a, b).
+ * POWS   : Powerup types stored as 1-char strings ('M', 'F', 'S', 'R').
+ * SHIP_C : Array of ship color hex codes.
+ * 
+ * playSfx helpers:
+ * sV : setValueAtTime | eR : exponentialRampToValueAtTime | lR : linearRampToValueAtTime
+ */
 
 const W = 800, H = 600;
 const STORAGE_KEY_SOLO = 'platanus-hack-26-astrodash-solo-v1';
 const STORAGE_KEY_DUEL = 'platanus-hack-26-astrodash-duel-v1';
 const POWS = { MISSILE: 'M', FLARE: 'F', SHIELD: 'S', RAPID: 'R' };
-const COLORS = {
-  bg: 0x05070a, p1: 0x00ff66, p2: 0xfacc15, debris: 0x444444, orb: 0x00ff88,
+const C = {
+  bg: 0x05070a, p1: 0x00ff66, p2: 0xfacc15, debris: 0x444444, orb: 0x00ff88, black: 0,
   white: 0xffffff, accent: 0xfacc15, stable: 0x4fb89a, cell: 0x111111, frame: 0x333333, overlay: 0x020408,
   energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xffeeaa, shield: 0x00ccff, overdrive: 0xff00ff
 };
-const SHIP_COLORS = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
+const rnd = (m) => Math.random() * (m || 1), rB = Phaser.Math.Between;
+const SHIP_C = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
 
 
 const c2s = (c) => '#' + c.toString(16).padStart(6, '0');
@@ -50,7 +63,7 @@ function create() {
   // Parallax Layer 1: Infinite Moving Grid
   s.bgGrid = s.add.tileSprite(W / 2, H / 2, W, H, null);
   const gridG = s.add.graphics();
-  gridG.lineStyle(1, COLORS.frame, 0.2);
+  gridG.lineStyle(1, C.frame, 0.2);
   for (let x = 0; x <= 80; x += 40) gridG.lineBetween(x, 0, x, 40);
   for (let y = 0; y <= 80; y += 40) gridG.lineBetween(0, y, 40, y);
   const gridTex = gridG.generateTexture('grid', 40, 40);
@@ -60,22 +73,22 @@ function create() {
   // Parallax Layer 2: Deep Space Stars
   s.starsFar = [];
   for (let i = 0; i < 60; i++) {
-    const st = s.add.circle(Math.random() * W, Math.random() * H, 0.5, 0xffffff, 0.2);
-    s.starsFar.push({ obj: st, s: 0.05 + Math.random() * 0.1 });
+    const st = s.add.circle(rnd(W), rnd(H), 0.5, C.white, 0.2);
+    s.starsFar.push({ obj: st, s: 0.05 + rnd(0.1) });
   }
 
   // Parallax Layer 3: Near Bright Stars
   s.starsNear = [];
   for (let i = 0; i < 25; i++) {
-    const st = s.add.circle(Math.random() * W, Math.random() * H, 1, 0xffffff, 0.5);
-    s.starsNear.push({ obj: st, s: 0.3 + Math.random() * 0.5 });
+    const st = s.add.circle(rnd(W), rnd(H), 1, C.white, 0.5);
+    s.starsNear.push({ obj: st, s: 0.3 + rnd(0.5) });
   }
 
   // Parallax Layer 4: Tech Dust & Embers
   s.embers = [];
   for (let i = 0; i < 15; i++) {
-    const d = s.add.rectangle(Math.random() * W, Math.random() * H, 2, 2, 0x4fb89a, 0.2);
-    const e = s.add.circle(Math.random() * W, Math.random() * H, 1.5, 0xffaa00, 0.4);
+    const d = s.add.rectangle(rnd() * W, rnd() * H, 2, 2, 0x4fb89a, 0.2);
+    const e = s.add.circle(rnd() * W, rnd() * H, 1.5, 0xffaa00, 0.4);
     s.embers.push({ obj: d, s: 0.8 }, { obj: e, s: 1.2 });
   }
 
@@ -83,8 +96,8 @@ function create() {
   s.orbs = s.add.group(); s.powerups = s.add.group(); s.missiles = s.add.group(); s.flares = s.add.group();
   s.enemies = s.add.group();
 
-  s.p1 = createShip(s, 150, H / 2, 'p1', COLORS.p1);
-  s.p2 = createShip(s, W - 150, H / 2, 'p2', COLORS.p2);
+  s.p1 = createShip(s, 150, H / 2, 'p1', C.p1);
+  s.p2 = createShip(s, W - 150, H / 2, 'p2', C.p2);
 
   s.physics.add.overlap(s.bullets, s.ships, hitShip, null, s);
   s.physics.add.overlap(s.bullets, s.meteors, hitMeteor, null, s);
@@ -110,13 +123,13 @@ function create() {
 
 function createScanlines(s) {
   const g = s.add.graphics();
-  g.lineStyle(1, 0x000000, 0.15);
+  g.lineStyle(1, C.black, 0.15);
   for (let y = 0; y < H; y += 3) g.lineBetween(0, y, W, y);
 
   // Vignette
   const v = s.add.graphics();
-  v.fillStyle(0x000000, 0.4);
-  v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.3, 0.3);
+  v.fillStyle(C.black, 0.4);
+  v.fillGradientStyle(C.black, C.black, C.black, C.black, 0, 0, 0.3, 0.3);
   return g;
 }
 
@@ -154,6 +167,7 @@ function update(time, delta) {
 
 function createShip(s, x, y, id, color) {
   const c = s.add.container(x, y);
+  c.id = id; c.isP1 = id === 'p1';
   const g = s.add.graphics();
 
   // Main Hull (Scaled Down Aggressive Design)
@@ -187,7 +201,7 @@ function createShip(s, x, y, id, color) {
   c.add([glow, reactor, wingLights, g]); s.physics.add.existing(c);
   c.body.setDrag(2000).setMaxVelocity(1200).setCircle(10, -10, -10).setCollideWorldBounds(true);
 
-  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: COLORS.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
+  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: C.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
 
   s.ships.add(c); return c;
 }
@@ -197,7 +211,7 @@ function updateShips(s, time, delta) {
   { ship: s.p2, enemy: s.p1, u: 'P2_U', d: 'P2_D', l: 'P2_L', r: 'P2_R', f1: 'P2_1', f2: 'P2_2', f3: 'P2_3', dL: 'P2_4', dR: 'P2_5', sp: 'P2_6' }];
   cfg.forEach(p => {
     if (p.ship.getData('dead')) return;
-    if (s.state.mode === 'solo' && p.ship.getData('id') === 'p2') return;
+    if (s.state.mode === 'solo' && !p.ship.isP1) return;
     const b = p.ship.body, curE = p.ship.getData('energy');
 
     const isSolo = s.state.mode === 'solo' && p.ship === s.p1;
@@ -223,7 +237,7 @@ function updateShips(s, time, delta) {
     if (isFiring && !isOverheated && !mustRelease) {
       fs.forEach((fKey, i) => {
         if (held(s, fKey)) {
-          p.ship.setData('shipColor', SHIP_COLORS[i % 3]);
+          p.ship.setData('shipColor', SHIP_C[i % 3]);
           if (time > p.ship.getData('lastFire') && (isOverdrive || curE >= 12)) {
             fireBullet(s, p.ship); p.ship.setData('lastFire', time + 140);
             if (!isOverdrive) p.ship.setData('energy', Math.max(0, curE - 12));
@@ -248,7 +262,7 @@ function updateShips(s, time, delta) {
       s.physics.velocityFromRotation(p.ship.rotation, 1200, b.velocity);
       p.ship.setData('lastDash', time + 3000);
       p.ship.setData('boostUntil', time + 200);
-      playSfx(s, 'boost'); explode(s, p.ship.x, p.ship.y, COLORS.dodge, 4);
+      playSfx(s, 'boost'); explode(s, p.ship.x, p.ship.y, C.dodge, 4);
     }
 
     // Special / Shield Logic (Button 6)
@@ -292,7 +306,7 @@ function updateShipVisuals(ship) {
   reactor.clear();
   reactor.fillStyle(rCol, 0.8).fillCircle(-10, 0, rSize);
   if (enPct > 0.8 || oh) {
-    reactor.lineStyle(1, 0xffffff, 0.5).strokeCircle(-10, 0, rSize + 2);
+    reactor.lineStyle(1, C.white, 0.5).strokeCircle(-10, 0, rSize + 2);
   }
 
   // 2. Update Wing Lights (Health)
@@ -336,7 +350,7 @@ function fireBullet(s, ship) {
   const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22;
   const b = s.add.container(x, y); b.add(s.add.circle(0, 0, 3, ship.getData('shipColor') || ship.getData('color')));
   s.physics.add.existing(b); b.body.setCircle(3, -3, -3).setVelocity(Math.cos(ship.rotation) * 1000, Math.sin(ship.rotation) * 1000);
-  b.setData({ owner: ship.getData('id'), color: ship.getData('shipColor') || ship.getData('color') });
+  b.setData({ owner: ship.id, color: ship.getData('shipColor') || ship.getData('color') });
   s.bullets.add(b); playSfx(s, 'pew');
 }
 
@@ -345,15 +359,15 @@ function fireSpecial(s, ship, enemy) {
   if (!type || count <= 0) return;
   if (type === POWS.MISSILE) {
     const mis = s.add.container(ship.x, ship.y); mis.rotation = ship.rotation;
-    mis.add([s.add.graphics().lineStyle(2, COLORS.missile).strokeTriangle(10, 0, -5, 5, -5, -5), s.add.graphics().fillStyle(COLORS.missile, 0.3).fillCircle(-2, 0, 8)]);
+    mis.add([s.add.graphics().lineStyle(2, C.missile).strokeTriangle(10, 0, -5, 5, -5, -5), s.add.graphics().fillStyle(C.missile, 0.3).fillCircle(-2, 0, 8)]);
     s.physics.add.existing(mis); mis.body.setCircle(8, -8, -8).setVelocity(Math.cos(ship.rotation) * 400, Math.sin(ship.rotation) * 400);
-    mis.setData({ owner: ship.getData('id'), target: enemy, expiry: s.time.now + 5000 }); s.missiles.add(mis);
+    mis.setData({ owner: ship.id, target: enemy, expiry: s.time.now + 5000 }); s.missiles.add(mis);
     playSfx(s, 'act');
   } else if (type === POWS.FLARE) {
     for (let i = 0; i < 5; i++) {
-      const fl = s.add.circle(ship.x, ship.y, 4, COLORS.flare); s.physics.add.existing(fl);
-      fl.body.setVelocity((Math.random() - 0.5) * 400, (Math.random() - 0.5) * 400).setDrag(200);
-      s.flares.add(fl); s.time.delayedCall(2000 + Math.random() * 1000, () => safeDestroy(fl));
+      const fl = s.add.circle(ship.x, ship.y, 4, C.flare); s.physics.add.existing(fl);
+      fl.body.setVelocity((rnd() - 0.5) * 400, (rnd() - 0.5) * 400).setDrag(200);
+      s.flares.add(fl); s.time.delayedCall(2000 + rnd() * 1000, () => safeDestroy(fl));
     }
     playSfx(s, 'act');
   }
@@ -363,7 +377,7 @@ function fireSpecial(s, ship, enemy) {
 function updateMissiles(s, time) {
   s.missiles.children.each(m => {
     if (!m || !m.active || !m.body) return;
-    if (time > m.getData('expiry')) { explode(s, m.x, m.y, COLORS.missile, 15); playSfx(s, 'hit'); safeDestroy(m); return; }
+    if (time > m.getData('expiry')) { explode(s, m.x, m.y, C.missile, 15); playSfx(s, 'hit'); safeDestroy(m); return; }
 
     const ownerId = m.getData('owner');
     let target = null;
@@ -371,14 +385,14 @@ function updateMissiles(s, time) {
 
     // Scan for nearest active threat (Opponent ships or Interceptors)
     s.ships.children.each(ship => {
-      if (ship.active && !ship.getData('dead') && ship.getData('id') !== ownerId) {
+      if (ship.active && !ship.getData('dead') && ship.id !== ownerId) {
         const d = Phaser.Math.Distance.Between(m.x, m.y, ship.x, ship.y);
         if (d < minDist) { minDist = d; target = ship; }
       }
     });
 
     s.enemies.children.each(enemy => {
-      if (enemy.active && !enemy.getData('dead') && enemy.getData('id') !== ownerId) {
+      if (enemy.active && !enemy.getData('dead') && enemy.id !== ownerId) {
         const d = Phaser.Math.Distance.Between(m.x, m.y, enemy.x, enemy.y);
         if (d < minDist) { minDist = d; target = enemy; }
       }
@@ -403,7 +417,7 @@ function updateMissiles(s, time) {
     m.body.setVelocity(vx, vy);
 
     if (time % 100 < 20) {
-      const p = s.add.circle(m.x, m.y, 2, COLORS.missile, 0.5);
+      const p = s.add.circle(m.x, m.y, 2, C.missile, 0.5);
       s.tweens.add({ targets: p, alpha: 0, scale: 2, duration: 400, onComplete: () => p.destroy() });
     }
   });
@@ -414,7 +428,7 @@ function drawPowerupIcon(g, type, color, sz) {
   g.lineStyle(2, color).fillStyle(color, 0.2);
   if (type === POWS.MISSILE) {
     g.beginPath().moveTo(0, -sz).lineTo(sz * 0.8, sz).lineTo(0, sz * 0.5).lineTo(-sz * 0.8, sz).closePath().fillPath().strokePath();
-    g.lineStyle(1, 0xffffff, 0.5).strokeCircle(0, 0, sz * 0.4);
+    g.lineStyle(1, C.white, 0.5).strokeCircle(0, 0, sz * 0.4);
   } else if (type === POWS.FLARE) {
     for (let i = 0; i < 8; i++) {
       const a = i * Math.PI / 4;
@@ -434,14 +448,14 @@ function drawPowerupIcon(g, type, color, sz) {
 }
 
 function spawnPowerup(s) {
-  const r = Math.random();
+  const r = rnd();
   const type = r < 0.25 ? POWS.MISSILE : (r < 0.5 ? POWS.FLARE : (r < 0.75 ? POWS.SHIELD : POWS.RAPID));
-  const x = 100 + Math.random() * (W - 200), y = 100 + Math.random() * (H - 200);
+  const x = 100 + rnd() * (W - 200), y = 100 + rnd() * (H - 200);
   const c = s.add.container(x, y);
-  let color = COLORS.missile;
-  if (type === POWS.FLARE) color = COLORS.flare;
-  if (type === POWS.SHIELD) color = COLORS.shield;
-  if (type === POWS.RAPID) color = COLORS.overdrive;
+  let color = C.missile;
+  if (type === POWS.FLARE) color = C.flare;
+  if (type === POWS.SHIELD) color = C.shield;
+  if (type === POWS.RAPID) color = C.overdrive;
 
   const g = s.add.graphics(); drawPowerupIcon(g, type, color, 12);
   const glow = s.add.graphics().fillStyle(color, 0.1).fillCircle(0, 0, 20);
@@ -454,7 +468,7 @@ function spawnPowerup(s) {
 }
 
 
-function updatePowerups(s, time) { if (time > s.state.powTimer) { spawnPowerup(s); s.state.powTimer = time + 15000 + Math.random() * 10000; } }
+function updatePowerups(s, time) { if (time > s.state.powTimer) { spawnPowerup(s); s.state.powTimer = time + 15000 + rnd() * 10000; } }
 
 function takePowerup(ship, pow) {
   if (!pow.active || ship.getData('dead')) return;
@@ -464,32 +478,32 @@ function takePowerup(ship, pow) {
   } else {
     ship.setData({ spType: type, spCount: type === POWS.MISSILE ? 3 : (type === POWS.FLARE ? 5 : 1) });
   }
-  addPoints(this, ship.getData('id'), 25, pow.x, pow.y);
+  addPoints(this, ship.id, 25, pow.x, pow.y);
   safeDestroy(pow); playSfx(this, 'orb');
 }
 
 
-function spawnMeteor(s, x, y, size = 40, color = COLORS.debris) {
+function spawnMeteor(s, x, y, size = 40, color = C.debris) {
   if (x === undefined) {
     let valid = false, tries = 0;
     while (!valid && tries < 10) {
-      const edge = Math.floor(Math.random() * 4);
-      x = edge < 2 ? (edge === 0 ? -50 : W + 50) : Math.random() * W;
-      y = edge < 2 ? Math.random() * H : (edge === 2 ? -50 : H + 50);
+      const edge = Math.floor(rnd() * 4);
+      x = edge < 2 ? (edge === 0 ? -50 : W + 50) : rnd() * W;
+      y = edge < 2 ? rnd() * H : (edge === 2 ? -50 : H + 50);
       let tooClose = false; s.ships.children.iterate(ship => { if (Phaser.Math.Distance.Between(x, y, ship.x, ship.y) < 180) tooClose = true; });
       if (!tooClose) valid = true; tries++;
     }
   }
   const g = s.add.graphics().lineStyle(2, color); g.beginPath();
-  const pts = 5 + Math.floor(Math.random() * 4);
+  const pts = 5 + Math.floor(rnd() * 4);
   for (let i = 0; i <= pts; i++) {
-    const a = (i / pts) * Math.PI * 2, r = size * (0.6 + Math.random() * 0.6);
+    const a = (i / pts) * Math.PI * 2, r = size * (0.6 + rnd() * 0.6);
     if (i === 0) g.moveTo(Math.cos(a) * r, Math.sin(a) * r); else g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
   }
   const m = s.add.container(x, y, [g.closePath().strokePath()]);
   const hitboxScale = size >= 20 ? 0.85 : 0.7;
   s.physics.add.existing(m); const speedMult = 1 + Math.floor((s.state.round - 1) / 5) * 0.25;
-  m.body.setCircle(size * hitboxScale, -size * hitboxScale, -size * hitboxScale).setVelocity((Math.random() - 0.5) * 120 * speedMult, (Math.random() - 0.5) * 120 * speedMult).setAngularVelocity((Math.random() - 0.5) * 100);
+  m.body.setCircle(size * hitboxScale, -size * hitboxScale, -size * hitboxScale).setVelocity((rnd() - 0.5) * 120 * speedMult, (rnd() - 0.5) * 120 * speedMult).setAngularVelocity((rnd() - 0.5) * 100);
   m.setData({ size, color }); s.meteors.add(m);
   return m;
 }
@@ -523,15 +537,15 @@ function updateMeteors(s, time) {
 
       let x, y, vx, vy;
       if (spawnDirIndex === 0) { // Right to Left
-        x = W + 60; y = Math.random() * H; vx = -(400 + Math.random() * 150) * speedMult; vy = (Math.random() - 0.5) * 80 * speedMult;
+        x = W + 60; y = rnd() * H; vx = -(400 + rnd() * 150) * speedMult; vy = (rnd() - 0.5) * 80 * speedMult;
       } else if (spawnDirIndex === 1) { // Top to Bottom
-        x = Math.random() * W; y = -60; vx = (Math.random() - 0.5) * 80 * speedMult; vy = (400 + Math.random() * 150) * speedMult;
+        x = rnd() * W; y = -60; vx = (rnd() - 0.5) * 80 * speedMult; vy = (400 + rnd() * 150) * speedMult;
       } else if (spawnDirIndex === 2) { // Left to Right
-        x = -60; y = Math.random() * H; vx = (400 + Math.random() * 150) * speedMult; vy = (Math.random() - 0.5) * 80 * speedMult;
+        x = -60; y = rnd() * H; vx = (400 + rnd() * 150) * speedMult; vy = (rnd() - 0.5) * 80 * speedMult;
       } else { // Bottom to Top
-        x = Math.random() * W; y = H + 60; vx = (Math.random() - 0.5) * 80 * speedMult; vy = -(400 + Math.random() * 150) * speedMult;
+        x = rnd() * W; y = H + 60; vx = (rnd() - 0.5) * 80 * speedMult; vy = -(400 + rnd() * 150) * speedMult;
       }
-      const m = spawnMeteor(s, x, y, 15 + Math.random() * 15);
+      const m = spawnMeteor(s, x, y, 15 + rnd() * 15);
       if (m) m.setData('isShower', true);
       if (m && m.body) m.body.setVelocity(vx, vy);
       s.state.spawnTimer = time + 160;
@@ -539,16 +553,16 @@ function updateMeteors(s, time) {
       if (s.hud.showerAlert) s.hud.showerAlert.clear();
       if (!s.state.showerPending && isSpawningPhase) {
         const numAdditionalColors = Math.min(3, Math.max(0, s.state.round - 1));
-        const available = [COLORS.white];
-        for (let i = 0; i < numAdditionalColors; i++) available.push(SHIP_COLORS[i]);
-        const color = available[Math.floor(Math.random() * available.length)];
+        const available = [C.white];
+        for (let i = 0; i < numAdditionalColors; i++) available.push(SHIP_C[i]);
+        const color = available[Math.floor(rnd() * available.length)];
         spawnMeteor(s, undefined, undefined, 40, color);
         const capped = Math.min(4, s.state.round);
         const delay = Math.max(400, 2500 - (capped * 400));
         s.state.spawnTimer = time + delay;
       }
     }
-    if (s.state.isShowerActive && Math.random() > 0.95) playSfx(s, 'whoosh');
+    if (s.state.isShowerActive && rnd() > 0.95) playSfx(s, 'whoosh');
   }
 
   s.meteors.getChildren().forEach(m => {
@@ -564,10 +578,10 @@ function updateMeteors(s, time) {
 
 
 function spawnOrb(s) {
-  const x = 100 + Math.random() * (W - 200), y = 100 + Math.random() * (H - 200);
+  const x = 100 + rnd() * (W - 200), y = 100 + rnd() * (H - 200);
   const c = s.add.container(x, y);
-  const g = s.add.graphics(); drawPowerupIcon(g, '+', COLORS.orb, 10);
-  const glow = s.add.graphics().fillStyle(COLORS.orb, 0.15).fillCircle(0, 0, 20);
+  const g = s.add.graphics(); drawPowerupIcon(g, '+', C.orb, 10);
+  const glow = s.add.graphics().fillStyle(C.orb, 0.15).fillCircle(0, 0, 20);
   c.add([glow, g]); s.physics.add.existing(c);
   c.body.setCircle(15, -15, -15);
   s.orbs.add(c);
@@ -575,10 +589,10 @@ function spawnOrb(s) {
   s.time.delayedCall(8000, () => { if (c.active) safeDestroy(c); });
 }
 
-function updateOrbs(s, time) { if (time > s.state.orbTimer) { spawnOrb(s); s.state.orbTimer = time + 12000 + Math.random() * 8000; } }
+function updateOrbs(s, time) { if (time > s.state.orbTimer) { spawnOrb(s); s.state.orbTimer = time + 12000 + rnd() * 8000; } }
 
 function spawnBoss(s) {
-  const startY = 100 + Math.random() * (H - 200);
+  const startY = 100 + rnd() * (H - 200);
   const boss = s.add.container(-150, startY);
   const g = s.add.graphics();
 
@@ -635,19 +649,19 @@ function spawnBoss(s) {
       const vy = boss.body.velocity.y, hp = boss.getData('hp');
 
       // Main Trail
-      const t = s.add.circle(boss.x + 20, boss.y + 50 + (Math.random() - 0.5) * 20, 4 + Math.random() * 8, nRed, 0.4);
+      const t = s.add.circle(boss.x + 20, boss.y + 50 + (rnd() - 0.5) * 20, 4 + rnd() * 8, nRed, 0.4);
       s.tweens.add({ targets: t, x: boss.x - 100, alpha: 0, scale: 0.1, duration: 400, onComplete: () => t.destroy() });
 
       // Side thrusters for vertical movement
       if (Math.abs(vy) > 20) {
         const py = vy > 0 ? -30 : 130;
-        const st = s.add.circle(boss.x + 30, boss.y + py, 3 + Math.random() * 3, 0x00ccff, 0.6);
+        const st = s.add.circle(boss.x + 30, boss.y + py, 3 + rnd() * 3, 0x00ccff, 0.6);
         s.tweens.add({ targets: st, x: boss.x - 20, alpha: 0, duration: 200, onComplete: () => st.destroy() });
       }
 
       // Critical sparks
-      if (hp < 30 && Math.random() > 0.7) {
-        explode(s, boss.x + Math.random() * 150, boss.y + Math.random() * 100, 0xffaa00, 2);
+      if (hp < 30 && rnd() > 0.7) {
+        explode(s, boss.x + rnd() * 150, boss.y + rnd() * 100, 0xffaa00, 2);
       }
     }
   });
@@ -665,7 +679,7 @@ function spawnBoss(s) {
   s.time.addEvent({
     delay: 50, loop: true, callback: () => {
       if (!boss.active) return;
-      boss.alpha = Math.random() > 0.95 ? 0.6 : 1;
+      boss.alpha = rnd() > 0.95 ? 0.6 : 1;
     }
   });
 
@@ -700,7 +714,7 @@ function spawnBoss(s) {
   const step = (windowEnd - windowStart) / Math.max(1, missileCount);
 
   for (let i = 0; i < missileCount; i++) {
-    const delay = windowStart + (i * step) + (Math.random() * step * 0.8);
+    const delay = windowStart + (i * step) + (rnd() * step * 0.8);
     s.time.delayedCall(Math.min(delay, duration - 500), () => {
       if (boss && boss.active && s.state.phase === 'playing') fireBossMissile(s, boss);
     });
@@ -714,7 +728,7 @@ function spawnBoss(s) {
 function fireBossMissile(s, boss) {
   if (!s.p1 || !s.p1.active) return;
   const mis = s.add.container(boss.x, boss.y + 50);
-  mis.add(s.add.circle(0, 0, 8, COLORS.missile));
+  mis.add(s.add.circle(0, 0, 8, C.missile));
   s.physics.add.existing(mis);
   if (mis.body) {
     mis.body.setCircle(8, -8, -8).setVelocity(350, 0);
@@ -727,12 +741,12 @@ function fireBossMissile(s, boss) {
 function takeOrb(ship, orb) {
   if (!orb.active || ship.getData('dead')) return;
   ship.setData('hp', Math.min(100, ship.getData('hp') + 25));
-  addPoints(this, ship.getData('id'), 25, orb.x, orb.y);
+  addPoints(this, ship.id, 25, orb.x, orb.y);
   safeDestroy(orb); playSfx(this, 'orb');
 }
 
 function hitFlareMissile(mis, fl) {
-  explode(this, mis.x, mis.y, COLORS.missile, 12);
+  explode(this, mis.x, mis.y, C.missile, 12);
   playSfx(this, 'hit');
   safeDestroy(mis);
   safeDestroy(fl);
@@ -745,15 +759,15 @@ function safeDestroy(obj) {
 }
 
 function hitShip(bullet, ship) {
-  if (!bullet.active || bullet.getData('owner') === ship.getData('id')) return;
+  if (!bullet.active || bullet.getData('owner') === ship.id) return;
   addPoints(this, bullet.getData('owner'), 100, bullet.x, bullet.y);
   safeDestroy(bullet); dmgShip(this, ship, 10); explode(this, bullet.x, bullet.y, ship.getData('color'), 5);
 }
 function hitShipMissile(missile, ship) {
-  if (!missile.active || missile.getData('owner') === ship.getData('id')) return;
+  if (!missile.active || missile.getData('owner') === ship.id) return;
   const owner = missile.getData('owner');
   if (owner === 'p1' || owner === 'p2') addPoints(this, owner, 250, missile.x, missile.y);
-  safeDestroy(missile); dmgShip(this, ship, 30); explode(this, missile.x, missile.y, COLORS.missile, 15);
+  safeDestroy(missile); dmgShip(this, ship, 30); explode(this, missile.x, missile.y, C.missile, 15);
 }
 
 function hitEnemy(bullet, enemy) {
@@ -769,12 +783,12 @@ function hitEnemyMissile(missile, enemy) {
   const owner = missile.getData('owner');
   safeDestroy(missile);
   dmgEnemy(this, enemy, 30, owner);
-  explode(this, missile.x, missile.y, COLORS.missile, 15);
+  explode(this, missile.x, missile.y, C.missile, 15);
 }
 
 function hitEnemyMeteor(enemy, meteor) {
   if (!meteor.active || enemy.getData('dead')) return;
-  explode(this, meteor.x, meteor.y, meteor.getData('color') || COLORS.debris, 5);
+  explode(this, meteor.x, meteor.y, meteor.getData('color') || C.debris, 5);
   safeDestroy(meteor);
   playSfx(this, 'hit');
 }
@@ -786,12 +800,12 @@ function dmgEnemy(s, enemy, amt, owner) {
 
   // Flash & Shake effect
   enemy.setAlpha(0.5);
-  const shakeX = (Math.random() - 0.5) * 10, shakeY = (Math.random() - 0.5) * 10;
+  const shakeX = (rnd() - 0.5) * 10, shakeY = (rnd() - 0.5) * 10;
   enemy.x += shakeX; enemy.y += shakeY;
 
   // Aggressive Tilt Dodge on heavy hit
   if (amt >= 30) {
-    const side = Math.random() > 0.5 ? 1 : -1;
+    const side = rnd() > 0.5 ? 1 : -1;
     enemy.setData('tilting', true);
     s.tweens.add({
       targets: enemy,
@@ -833,15 +847,15 @@ function hitMeteor(bullet, meteor) {
     safeDestroy(bullet);
     // Impact Sparks
     for (let i = 0; i < 4; i++) {
-      const p = s.add.rectangle(meteor.x, meteor.y, 2, 2, 0xffffff);
+      const p = s.add.rectangle(meteor.x, meteor.y, 2, 2, C.white);
       s.physics.add.existing(p);
-      const a = Math.random() * Math.PI * 2, spd = 200 + Math.random() * 200;
+      const a = rnd() * Math.PI * 2, spd = 200 + rnd() * 200;
       p.body.setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(800);
       s.tweens.add({ targets: p, alpha: 0, duration: 300, onComplete: () => p.destroy() });
     }
   }
   const sz = meteor.getData('size');
-  explode(s, meteor.x, meteor.y, COLORS.debris, sz / 8);
+  explode(s, meteor.x, meteor.y, C.debris, sz / 8);
   if (sz > 18) { spawnMeteor(s, meteor.x, meteor.y, sz / 2); spawnMeteor(s, meteor.x, meteor.y, sz / 2); }
   safeDestroy(meteor); playSfx(s, 'hit');
 }
@@ -854,7 +868,7 @@ function crashShip(ship, meteor) {
   }
   ship.setData('lastHit', this.time.now);
   dmgShip(this, ship, Math.floor(sz / 2));
-  explode(this, meteor.x, meteor.y, mColor || COLORS.debris, 5); safeDestroy(meteor); playSfx(this, 'hit');
+  explode(this, meteor.x, meteor.y, mColor || C.debris, 5); safeDestroy(meteor); playSfx(this, 'hit');
 }
 
 
@@ -862,7 +876,7 @@ function crashEnemy(ship, enemy) {
   if (ship.getData('dead') || enemy.getData('dead') || this.time.now < ship.getData('lastHit') + 200) return;
   ship.setData('lastHit', this.time.now);
   dmgShip(this, ship, 25);
-  dmgEnemy(this, enemy, 20, ship.getData('id'));
+  dmgEnemy(this, enemy, 20, ship.id);
   explode(this, ship.x, ship.y, 0xff3344, 10);
   playSfx(this, 'hit');
 }
@@ -872,7 +886,7 @@ function dmgShip(s, ship, amt) {
   if (ship.getData('hasShield')) {
     ship.setData('hasShield', false);
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
-    playSfx(s, 'dash'); explode(s, ship.x, ship.y, COLORS.shield, 10);
+    playSfx(s, 'dash'); explode(s, ship.x, ship.y, C.shield, 10);
     return;
   }
   const hp = Math.max(0, ship.getData('hp') - amt); ship.setData('hp', hp);
@@ -885,7 +899,7 @@ function dmgShip(s, ship, amt) {
   s.time.delayedCall(50, () => s.physics.world.resume());
 
   // Glitch Flash Effect
-  const flash = s.add.graphics().fillStyle(0xffffff, 0.8).fillCircle(0, 0, 20);
+  const flash = s.add.graphics().fillStyle(C.white, 0.8).fillCircle(0, 0, 20);
   ship.add(flash);
   s.time.delayedCall(50, () => flash.destroy());
 
@@ -906,7 +920,7 @@ function dmgShip(s, ship, amt) {
 
 
 function updateHud(s, ship, time) {
-  const id = ship.getData('id'), hp = ship.getData('hp'), en = ship.getData('energy'), ld = ship.getData('lastDash'), type = ship.getData('spType'), count = ship.getData('spCount'), score = s.state.scores[id], sh = ship.getData('hasShield');
+  const id = ship.id, hp = ship.getData('hp'), en = ship.getData('energy'), ld = ship.getData('lastDash'), type = ship.getData('spType'), count = ship.getData('spCount'), score = s.state.scores[id], sh = ship.getData('hasShield');
   const isOverdrive = time < ship.getData('overdriveUntil');
   const shots = Math.floor(en / 12);
   s.hud[id].hp.setText(`${id.toUpperCase()} // HULL ${Math.ceil(hp)}%`);
@@ -918,7 +932,7 @@ function updateHud(s, ship, time) {
   const g = s.hud[id].dodgeInd; g.clear();
   const ox = id === 'p1' ? 0 : -60;
   g.lineStyle(1, 0x888888, 0.4).strokeRect(ox, 48, 60, 10);
-  if (dReady) g.fillStyle(COLORS.dodge, 0.8).fillRect(ox + 2, 50, 56, 6);
+  if (dReady) g.fillStyle(C.dodge, 0.8).fillRect(ox + 2, 50, 56, 6);
   else {
     const pct = 1 - (ld - time) / 3000;
     g.fillStyle(0x444444, 0.8).fillRect(ox + 2, 50, 56 * pct, 6);
@@ -951,7 +965,7 @@ function showPoints(s, x, y, amt, color) {
 function addPoints(s, id, amt, x, y) {
   if (s.state.phase !== 'playing' || s.state.scores[id] === undefined) return;
   s.state.scores[id] += amt;
-  if (x !== undefined && y !== undefined && COLORS[id]) showPoints(s, x, y, amt, COLORS[id]);
+  if (x !== undefined && y !== undefined && C[id]) showPoints(s, x, y, amt, C[id]);
 }
 
 function updateRounds(s, time, delta) {
@@ -971,7 +985,7 @@ function updateRounds(s, time, delta) {
     if (s.state.mode === 'duel') addPoints(s, 'p2', bonus);
 
     // Visual Announcement
-    const msg = s.add.text(W / 2, H / 2, `ROUND ${s.state.round}\nMETEOR INTENSITY UP!`, { font: 'bold 42px monospace', fill: c2s(COLORS.accent), align: 'center' }).setOrigin(0.5).setDepth(300).setScale(0);
+    const msg = s.add.text(W / 2, H / 2, `ROUND ${s.state.round}\nMETEOR INTENSITY UP!`, { font: 'bold 42px monospace', fill: c2s(C.accent), align: 'center' }).setOrigin(0.5).setDepth(300).setScale(0);
     s.tweens.add({ targets: msg, scale: 1, duration: 500, ease: 'Back.out' });
     s.time.delayedCall(2000, () => s.tweens.add({ targets: msg, alpha: 0, scale: 1.5, duration: 500, onComplete: () => msg.destroy() }));
 
@@ -989,9 +1003,9 @@ function explode(s, x, y, color, count = 10) {
   for (let i = 0; i < count; i++) {
     const p = s.add.rectangle(x, y, 3, 3, color);
     s.physics.add.existing(p);
-    const a = Math.random() * Math.PI * 2, spd = 100 + Math.random() * 200;
+    const a = rnd() * Math.PI * 2, spd = 100 + rnd() * 200;
     p.body.setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(200);
-    s.tweens.add({ targets: p, alpha: 0, scale: 0, duration: 600 + Math.random() * 400, onComplete: () => p.destroy() });
+    s.tweens.add({ targets: p, alpha: 0, scale: 0, duration: 600 + rnd() * 400, onComplete: () => p.destroy() });
   }
   // Screen Glitch Effect
   if (count > 15) triggerGlitch(s);
@@ -1012,7 +1026,7 @@ function triggerGlitch(s) {
 function spawnTrail(s, ship) {
   const isOverdrive = s.time.now < ship.getData('overdriveUntil');
   const hp = ship.getData('hp');
-  const color = isOverdrive ? COLORS.overdrive : (ship.getData('shipColor') || ship.getData('color'));
+  const color = isOverdrive ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
 
   // 1. Fire Particle (Ejected from reactor)
   const isSputtering = hp < 30 && (Math.floor(Date.now() / 100) % 2 === 0);
@@ -1032,17 +1046,17 @@ function spawnTrail(s, ship) {
   // 2. Smoke Particle (Adaptive based on HP)
   if (hp < 80) {
     const smokeChance = (80 - hp) / 70;
-    if (Math.random() < smokeChance) {
+    if (rnd() < smokeChance) {
       const sm = s.add.circle(ship.x, ship.y, 3, color, 0.25);
-      const driftX = (Math.random() - 0.5) * 40;
-      const driftY = (Math.random() - 0.5) * 40;
+      const driftX = (rnd() - 0.5) * 40;
+      const driftY = (rnd() - 0.5) * 40;
       s.tweens.add({
         targets: sm,
         x: ship.x + driftX,
         y: ship.y + driftY,
-        scale: 4 + Math.random() * 2,
+        scale: 4 + rnd() * 2,
         alpha: 0,
-        duration: 800 + Math.random() * 500,
+        duration: 800 + rnd() * 500,
         onComplete: () => sm.destroy()
       });
     }
@@ -1054,7 +1068,7 @@ function drawShield(s, ship) {
     ship.shieldVisual = s.add.graphics();
     ship.add(ship.shieldVisual);
   }
-  ship.shieldVisual.clear().lineStyle(2, COLORS.shield, 0.6).strokeCircle(0, 0, 20 + Math.sin(s.time.now / 100) * 2);
+  ship.shieldVisual.clear().lineStyle(2, C.shield, 0.6).strokeCircle(0, 0, 20 + Math.sin(s.time.now / 100) * 2);
 }
 
 
@@ -1070,7 +1084,7 @@ function initUi(s) {
       hp: s.add.text(0, 0, 'P1 // HULL OK', { ...f, fill: '#00ff66' }),
       enBar: s.add.text(0, 25, 'ENERGY: 100%', { ...sf, fill: '#888' }),
       dodgeInd: s.add.graphics(),
-      shInd: s.add.text(0, 65, '>> DEFENSE: [ SHIELD_UP ]', { ...sf, fill: c2s(COLORS.shield) }).setVisible(false),
+      shInd: s.add.text(0, 65, '>> DEFENSE: [ SHIELD_UP ]', { ...sf, fill: c2s(C.shield) }).setVisible(false),
       sp: s.add.text(0, 85, '', { ...sf, fill: '#ff4422' }),
       score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: '#00ff66' })
     },
@@ -1078,7 +1092,7 @@ function initUi(s) {
       hp: s.add.text(0, 0, 'P2 // HULL OK', { ...f, fill: '#ffcc00' }).setOrigin(1, 0),
       enBar: s.add.text(0, 25, 'ENERGY: 100%', { ...sf, fill: '#888' }).setOrigin(1, 0),
       dodgeInd: s.add.graphics(),
-      shInd: s.add.text(0, 65, '[ SHIELD_UP ] :DEFENSE <<', { ...sf, fill: c2s(COLORS.shield) }).setOrigin(1, 0).setVisible(false),
+      shInd: s.add.text(0, 65, '[ SHIELD_UP ] :DEFENSE <<', { ...sf, fill: c2s(C.shield) }).setOrigin(1, 0).setVisible(false),
       sp: s.add.text(0, 85, '', { ...sf, fill: '#ffcc00' }).setOrigin(1, 0),
       score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: '#ffcc00' }).setOrigin(1, 0)
     },
@@ -1096,8 +1110,8 @@ function initUi(s) {
 
 function createModeSelectScreen(s) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
-  c.add(s.add.rectangle(W / 2, H / 2, W, H, COLORS.overlay, 1));
-  c.add(s.add.text(W / 2, 120, 'SELECT OPERATION', { font: 'bold 42px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5));
+  c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 1));
+  c.add(s.add.text(W / 2, 120, 'SELECT OPERATION', { font: 'bold 42px monospace', fill: c2s(C.accent) }).setOrigin(0.5));
 
   const modes = [
     { id: 'solo', name: '1 PLAYER: RESISTANCE', desc: 'Survive the meteor storm as long as possible.' },
@@ -1106,9 +1120,9 @@ function createModeSelectScreen(s) {
 
   const btns = modes.map((m, i) => {
     const y = 280 + i * 140;
-    const bg = s.add.rectangle(W / 2, y, 500, 100, COLORS.cell).setStrokeStyle(2, COLORS.frame);
+    const bg = s.add.rectangle(W / 2, y, 500, 100, C.cell).setStrokeStyle(2, C.frame);
     const title = s.add.text(W / 2, y - 20, m.name, { font: 'bold 24px monospace', fill: '#fff' }).setOrigin(0.5);
-    const desc = s.add.text(W / 2, y + 20, m.desc, { font: '14px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5);
+    const desc = s.add.text(W / 2, y + 20, m.desc, { font: '14px monospace', fill: c2s(C.stable) }).setOrigin(0.5);
     c.add([bg, title, desc]); return { bg, title, desc };
   });
 
@@ -1120,16 +1134,16 @@ function createModeSelectScreen(s) {
 
 function createNameEntryScreen(s) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
-  c.add(s.add.rectangle(W / 2, H / 2, W, H, COLORS.overlay, 0.98));
-  const t1 = s.add.text(W / 2, 120, 'NEW HIGH SCORE!', { font: 'bold 42px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5);
+  c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 0.98));
+  const t1 = s.add.text(W / 2, 120, 'NEW HIGH SCORE!', { font: 'bold 42px monospace', fill: c2s(C.accent) }).setOrigin(0.5);
   const t2 = s.add.text(W / 2, 180, 'PILOT IDENTIFICATION', { font: '24px monospace', fill: '#fff' }).setOrigin(0.5);
 
   const charTexts = [0, 1, 2].map(i => s.add.text(W / 2 - 60 + i * 60, H / 2, 'A', { font: 'bold 64px monospace', fill: '#fff' }).setOrigin(0.5));
-  const underline = s.add.graphics().lineStyle(4, COLORS.accent).lineBetween(-25, 40, 25, 40);
+  const underline = s.add.graphics().lineStyle(4, C.accent).lineBetween(-25, 40, 25, 40);
   const cursor = s.add.container(W / 2 - 60, H / 2).add(underline);
 
   const confirmMsg = s.add.text(W / 2, H / 2 + 80, '>>> CONFIRM NAME? [START] YES / [ACTION] EDIT <<<', { font: 'bold 18px monospace', fill: '#ffcc00' }).setOrigin(0.5).setVisible(false);
-  const help = s.add.text(W / 2, H - 120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM NAME', { font: 'bold 16px monospace', fill: c2s(COLORS.stable), align: 'center' }).setOrigin(0.5);
+  const help = s.add.text(W / 2, H - 120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM NAME', { font: 'bold 16px monospace', fill: c2s(C.stable), align: 'center' }).setOrigin(0.5);
 
   c.add([t1, t2, ...charTexts, cursor, confirmMsg, help]);
   return { c, chars: charTexts, cursor, t1, help, confirmMsg };
@@ -1137,18 +1151,18 @@ function createNameEntryScreen(s) {
 
 function createStartScreen(s) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
-  c.add(s.add.rectangle(W / 2, H / 2, W, H, COLORS.overlay, 1));
+  c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 1));
 
   // OS Header
   const headerBg = s.add.graphics().fillStyle(0x0a0a0a, 0.9).fillRect(0, 0, W, 50);
-  const headerLine = s.add.graphics().lineStyle(2, COLORS.accent, 0.5).lineBetween(0, 50, W, 50);
-  const osTitle = s.add.text(25, 15, 'ASTRO_DASH // V1.0', { font: 'bold 18px monospace', fill: c2s(COLORS.accent) });
-  const sysInfo = s.add.text(W - 25, 18, 'CORE_TEMP: 42°C | MEMORY: 92% | SECTOR: 7G', { font: '12px monospace', fill: c2s(COLORS.stable) }).setOrigin(1, 0);
+  const headerLine = s.add.graphics().lineStyle(2, C.accent, 0.5).lineBetween(0, 50, W, 50);
+  const osTitle = s.add.text(25, 15, 'ASTRO_DASH // V1.0', { font: 'bold 18px monospace', fill: c2s(C.accent) });
+  const sysInfo = s.add.text(W - 25, 18, 'CORE_TEMP: 42°C | MEMORY: 92% | SECTOR: 7G', { font: '12px monospace', fill: c2s(C.stable) }).setOrigin(1, 0);
   c.add([headerBg, headerLine, osTitle, sysInfo]);
 
   s.time.addEvent({
     delay: 150, loop: true, callback: () => {
-      if (s.state.phase === 'start') sysInfo.setText(`CORE_TEMP: ${41 + Math.floor(Math.random() * 4)}°C | MEMORY: ${91 + Math.floor(Math.random() * 6)}% | SECTOR: ${Math.floor(Math.random() * 9)}G`);
+      if (s.state.phase === 'start') sysInfo.setText(`CORE_TEMP: ${41 + Math.floor(rnd() * 4)}°C | MEMORY: ${91 + Math.floor(rnd() * 6)}% | SECTOR: ${Math.floor(rnd() * 9)}G`);
     }
   });
 
@@ -1156,29 +1170,29 @@ function createStartScreen(s) {
 
   // Left Section: Interaction Console
   const leftX = 50, leftY = 100, leftW = 320, leftH = 440;
-  const leftBox = drawTechFrame(s, leftX, leftY, leftW, leftH, COLORS.frame);
+  const leftBox = drawTechFrame(s, leftX, leftY, leftW, leftH, C.frame);
   const leftTitle = s.add.text(leftX + leftW / 2, leftY + 30, '┌ PILOT CONSOLE ┐', { font: 'bold 24px monospace', fill: '#fff' }).setOrigin(0.5, 0);
-  const leftSub = s.add.text(leftX + leftW / 2, leftY + 70, 'STATION_7G // STANDBY', { font: '12px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5, 0);
+  const leftSub = s.add.text(leftX + leftW / 2, leftY + 70, 'STATION_7G // STANDBY', { font: '12px monospace', fill: c2s(C.stable) }).setOrigin(0.5, 0);
   c.add([leftBox, leftTitle, leftSub]);
 
   const buttons = ['PLAY', 'HELP', 'TEST'];
   const btns = buttons.map((txt, i) => {
     const y = leftY + 180 + i * 85;
-    const bg = s.add.rectangle(leftX + leftW / 2, y, 240, 55, COLORS.cell).setStrokeStyle(2, COLORS.frame);
+    const bg = s.add.rectangle(leftX + leftW / 2, y, 240, 55, C.cell).setStrokeStyle(2, C.frame);
     const label = s.add.text(leftX + leftW / 2, y, `[ ${txt} ]`, { font: 'bold 20px monospace', fill: '#fff' }).setOrigin(0.5);
     c.add([bg, label]); return { bg, label };
   });
 
   // Right Section: Global Ranking
   const rightX = 400, rightY = 100, rightW = 350, rightH = 440;
-  const rightBox = drawTechFrame(s, rightX, rightY, rightW, rightH, COLORS.frame);
+  const rightBox = drawTechFrame(s, rightX, rightY, rightW, rightH, C.frame);
   const rightTitle = s.add.text(rightX + rightW / 2, rightY + 30, '┌ PILOT RANKINGS ┐', { font: 'bold 24px monospace', fill: '#fff' }).setOrigin(0.5, 0);
   c.add([rightBox, rightTitle]);
 
-  const sbSoloHeader = s.add.text(rightX + 90, rightY + 100, '--- SOLO_RECORD ---', { font: 'bold 12px monospace', fill: c2s(COLORS.p1) }).setOrigin(0.5);
+  const sbSoloHeader = s.add.text(rightX + 90, rightY + 100, '--- SOLO_RECORD ---', { font: 'bold 12px monospace', fill: c2s(C.p1) }).setOrigin(0.5);
   const sbSoloText = s.add.text(rightX + 90, rightY + 130, 'LOADING...', { font: '13px monospace', fill: '#fff', align: 'center', lineSpacing: 4 }).setOrigin(0.5, 0);
 
-  const sbDuelHeader = s.add.text(rightX + 260, rightY + 100, '--- DUEL_RECORD ---', { font: 'bold 12px monospace', fill: c2s(COLORS.p2) }).setOrigin(0.5);
+  const sbDuelHeader = s.add.text(rightX + 260, rightY + 100, '--- DUEL_RECORD ---', { font: 'bold 12px monospace', fill: c2s(C.p2) }).setOrigin(0.5);
   const sbDuelText = s.add.text(rightX + 260, rightY + 130, 'LOADING...', { font: '13px monospace', fill: '#fff', align: 'center', lineSpacing: 4 }).setOrigin(0.5, 0);
 
   c.add([sbSoloHeader, sbSoloText, sbDuelHeader, sbDuelText]);
@@ -1200,14 +1214,14 @@ function drawTechFrame(s, x, y, w, h, color) {
   g.lineBetween(x + w, y + h, x + w - l, y + h); g.lineBetween(x + w, y + h, x + w, y + h - l); // BR
 
   // Tech labels
-  const label = s.add.text(x + w - 5, y + h + 5, 'SYS_REF: ' + Math.random().toString(16).slice(2, 8).toUpperCase(), { font: '9px monospace', fill: c2s(color) }).setOrigin(1, 0).setAlpha(0.6);
+  const label = s.add.text(x + w - 5, y + h + 5, 'SYS_REF: ' + rnd().toString(16).slice(2, 8).toUpperCase(), { font: '9px monospace', fill: c2s(color) }).setOrigin(1, 0).setAlpha(0.6);
   const container = s.add.container(0, 0, [g, label]);
   return container;
 }
 
 function drawHazardStripes(s, container, x, y, w, h) {
   const g = s.add.graphics();
-  g.fillStyle(COLORS.accent, 1);
+  g.fillStyle(C.accent, 1);
   g.fillRect(x, y, w, h);
   g.lineStyle(8, 0x000000, 1);
   for (let i = 0; i < w; i += 20) {
@@ -1218,11 +1232,11 @@ function drawHazardStripes(s, container, x, y, w, h) {
 
 function createOverlay(s, title, buttons) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
-  c.add(s.add.rectangle(W / 2, H / 2, W, H, COLORS.overlay, 1));
-  const tText = s.add.text(W / 2, 140, title, { font: 'bold 64px monospace', fill: c2s(COLORS.accent) }).setOrigin(0.5);
+  c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 1));
+  const tText = s.add.text(W / 2, 140, title, { font: 'bold 64px monospace', fill: c2s(C.accent) }).setOrigin(0.5);
   c.add(tText);
   const btns = buttons.map((txt, i) => {
-    const y = 300 + i * 70; const bg = s.add.rectangle(W / 2, y, 280, 45, COLORS.cell).setStrokeStyle(2, COLORS.frame);
+    const y = 300 + i * 70; const bg = s.add.rectangle(W / 2, y, 280, 45, C.cell).setStrokeStyle(2, C.frame);
     const label = s.add.text(W / 2, y, `[ ${txt} ]`, { font: 'bold 22px monospace', fill: '#fff' }).setOrigin(0.5);
     c.add([bg, label]); return { bg, label };
   });
@@ -1256,9 +1270,9 @@ function updateScoreboardUi(s) {
 function updateMenu(s) {
   s.scrStart.btns.forEach((b, i) => {
     const a = i === s.state.menu.cursor;
-    b.bg.setFillStyle(a ? COLORS.accent : COLORS.cell);
+    b.bg.setFillStyle(a ? C.accent : C.cell);
     b.label.setFill(a ? '#000' : '#fff');
-    b.bg.setStrokeStyle(2, a ? COLORS.white : COLORS.frame);
+    b.bg.setStrokeStyle(2, a ? C.white : C.frame);
   });
 }
 
@@ -1286,9 +1300,9 @@ function showModeSelect(s) {
 function updateModeMenu(s) {
   s.scrMode.btns.forEach((b, i) => {
     const a = i === s.state.menu.cursor;
-    b.bg.setFillStyle(a ? COLORS.accent : COLORS.cell);
+    b.bg.setFillStyle(a ? C.accent : C.cell);
     b.title.setFill(a ? '#000' : '#fff');
-    b.bg.setStrokeStyle(2, a ? COLORS.white : COLORS.frame);
+    b.bg.setStrokeStyle(2, a ? C.white : C.frame);
   });
 }
 
@@ -1314,11 +1328,11 @@ function startMatch(s) {
 function resetGame(s) {
   s.state.startTime = s.time.now;
   s.ships.children.iterate(ship => {
-    const isP2 = ship.getData('id') === 'p2';
+    const isP2 = !ship.isP1;
     const active = s.state.mode === 'duel' || !isP2;
 
-    ship.setData({ hp: 100, energy: 100, dead: !active, lastHit: 0, spType: null, spCount: 0, shipColor: SHIP_COLORS[0], hasShield: false })
-      .setVisible(active).setPosition(ship.getData('id') === 'p1' ? 150 : W - 150, H / 2).setRotation(ship.getData('id') === 'p1' ? 0 : Math.PI);
+    ship.setData({ hp: 100, energy: 100, dead: !active, lastHit: 0, spType: null, spCount: 0, shipColor: SHIP_C[0], hasShield: false })
+      .setVisible(active).setPosition(ship.isP1 ? 150 : W - 150, H / 2).setRotation(ship.isP1 ? 0 : Math.PI);
     ship.body.setVelocity(0).enable = active;
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
   });
@@ -1358,10 +1372,10 @@ function endMatch(s) {
     s.scrGameOver.t.setText('SIGNAL TERMINATED').setTint(0xff4422).setScale(0);
     s.tweens.add({ targets: s.scrGameOver.t, scale: 1, alpha: { from: 0, to: 1 }, duration: 800, ease: 'Bounce.out' });
 
-    const scoreBox = drawTechFrame(s, W / 2 - 180, 210, 360, 240, COLORS.frame);
+    const scoreBox = drawTechFrame(s, W / 2 - 180, 210, 360, 240, C.frame);
     s.scrGameOver.c.add(scoreBox);
 
-    const scoreLabel = s.add.text(W / 2, 235, '--- RECOVERY_COMPLETE ---', { font: '14px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5);
+    const scoreLabel = s.add.text(W / 2, 235, '--- RECOVERY_COMPLETE ---', { font: '14px monospace', fill: c2s(C.stable) }).setOrigin(0.5);
     const scoreVal = s.add.text(W / 2, 300, '000000', { font: 'bold 72px monospace', fill: '#fff' }).setOrigin(0.5);
     s.scrGameOver.c.add([scoreLabel, scoreVal]);
 
@@ -1375,7 +1389,7 @@ function endMatch(s) {
         else {
           scoreLabel.setText(isHS ? '!! NEW_RECORD_DETECTED !!' : '>> DATA_ARCHIVED_SUCCESSFULLY');
           const timeInfo = s.add.text(W / 2, 370, `FLIGHT_TIME: ${timeStr}`, { font: '18px monospace', fill: '#888' }).setOrigin(0.5).setAlpha(0);
-          const prompt = s.add.text(W / 2, 420, isHS ? 'PRESS START TO SYNC DATA' : 'PRESS START TO DISCONNECT', { font: 'bold 16px monospace', fill: isHS ? c2s(COLORS.accent) : '#666' }).setOrigin(0.5).setAlpha(0);
+          const prompt = s.add.text(W / 2, 420, isHS ? 'PRESS START TO SYNC DATA' : 'PRESS START TO DISCONNECT', { font: 'bold 16px monospace', fill: isHS ? c2s(C.accent) : '#666' }).setOrigin(0.5).setAlpha(0);
           s.scrGameOver.c.add([timeInfo, prompt]);
           s.tweens.add({ targets: [timeInfo, prompt], alpha: 1, y: '+=10', duration: 500 });
           s.state.gameoverDone = true; s.state.isHS = isHS; s.state.winId = winId; s.state.score = score; s.state.timeStr = timeStr;
@@ -1409,7 +1423,7 @@ function updateNameEntryUi(s) {
   const e = s.state.nameEntry;
   s.scrName.chars.forEach((t, i) => {
     t.setText(e.name[i]);
-    t.setFill(e.confirming ? '#ffcc00' : (i === e.idx ? c2s(COLORS.accent) : '#fff'));
+    t.setFill(e.confirming ? '#ffcc00' : (i === e.idx ? c2s(C.accent) : '#fff'));
     if (e.confirming) {
       t.setAlpha(0.6 + Math.sin(Date.now() / 100) * 0.4);
     } else {
@@ -1485,11 +1499,11 @@ function showHelp(s) {
   c.add(ctrl);
 
   const items = [
-    { t: POWS.MISSILE, n: 'MISSILE', d: 'HOMING STRIKE.\nTRACKS HOSTILES.', c: COLORS.missile },
-    { t: POWS.FLARE, n: 'FLARE', d: 'DECOY. DEFLECTS\nINCOMING MISSILES.', c: COLORS.flare },
-    { t: POWS.SHIELD, n: 'SHIELD', d: 'KINETIC BARRIER.\nBLOCKS ONE IMPACT.', c: COLORS.shield },
-    { t: POWS.RAPID, n: 'OVERDRIVE', d: 'UNLIMITED ENERGY.\nLASTS 8 SECONDS.', c: COLORS.overdrive },
-    { t: '+', n: 'REPAIR', d: 'RESTORES 25% HULL\nINTEGRITY.', c: COLORS.orb }
+    { t: POWS.MISSILE, n: 'MISSILE', d: 'HOMING STRIKE.\nTRACKS HOSTILES.', c: C.missile },
+    { t: POWS.FLARE, n: 'FLARE', d: 'DECOY. DEFLECTS\nINCOMING MISSILES.', c: C.flare },
+    { t: POWS.SHIELD, n: 'SHIELD', d: 'KINETIC BARRIER.\nBLOCKS ONE IMPACT.', c: C.shield },
+    { t: POWS.RAPID, n: 'OVERDRIVE', d: 'UNLIMITED ENERGY.\nLASTS 8 SECONDS.', c: C.overdrive },
+    { t: '+', n: 'REPAIR', d: 'RESTORES 25% HULL\nINTEGRITY.', c: C.orb }
   ];
 
   items.forEach((item, i) => {
@@ -1507,7 +1521,7 @@ function showHelp(s) {
     c.add([name, desc]);
   });
 
-  const tip = s.add.text(W / 2, H - 60, 'TIP: BOOST ENABLES INERTIAL DRIFT! ROTATE AND FIRE WHILE SLIDING.', { font: 'bold 13px monospace', fill: c2s(COLORS.stable) }).setOrigin(0.5);
+  const tip = s.add.text(W / 2, H - 60, 'TIP: BOOST ENABLES INERTIAL DRIFT! ROTATE AND FIRE WHILE SLIDING.', { font: 'bold 13px monospace', fill: c2s(C.stable) }).setOrigin(0.5);
   c.add(tip);
 }
 
@@ -1561,17 +1575,23 @@ function playSfx(s, type) {
   try {
     const ctx = s.game.sound.context; if (!ctx) return;
     const osc = ctx.createOscillator(), g = ctx.createGain(); osc.connect(g); g.connect(ctx.destination);
-    const ct = ctx.currentTime;
-    if (type === 'pew') { osc.type = 'triangle'; osc.frequency.setValueAtTime(800, ct); osc.frequency.exponentialRampToValueAtTime(100, ct + .1); g.gain.setValueAtTime(.08, ct); }
-    else if (type === 'dash') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, ct); osc.frequency.exponentialRampToValueAtTime(1e3, ct + .12); g.gain.setValueAtTime(.12, ct); }
-    else if (type === 'hit') { osc.type = 'square'; osc.frequency.setValueAtTime(100, ct); osc.frequency.linearRampToValueAtTime(10, ct + .1); g.gain.setValueAtTime(.2, ct); g.gain.linearRampToValueAtTime(0, ct + .1); }
-    else if (type === 'orb') { osc.type = 'sine'; osc.frequency.setValueAtTime(400, ct); osc.frequency.exponentialRampToValueAtTime(1200, ct + .15); g.gain.setValueAtTime(.1, ct); }
-    else if (type === 'boost') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, ct); osc.frequency.exponentialRampToValueAtTime(20, ct + .3); g.gain.setValueAtTime(0, ct); g.gain.linearRampToValueAtTime(.4, ct + .03); g.gain.exponentialRampToValueAtTime(.001, ct + .35); }
-    else if (type === 'click') { osc.type = 'square'; osc.frequency.setValueAtTime(1500, ct); g.gain.setValueAtTime(.02, ct); g.gain.exponentialRampToValueAtTime(.001, ct + .03); osc.start(); osc.stop(ct + .03); return; }
-    else if (type === 'whoosh') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, ct); osc.frequency.exponentialRampToValueAtTime(50, ct + .3); g.gain.setValueAtTime(.05, ct); g.gain.linearRampToValueAtTime(0, ct + .3); }
-    else if (type === 'act') { osc.type = 'square'; osc.frequency.setValueAtTime(800, ct); osc.frequency.exponentialRampToValueAtTime(1600, ct + .05); g.gain.setValueAtTime(.1, ct); g.gain.linearRampToValueAtTime(0, ct + .05); }
-    else if (type === 'lock') { osc.type = 'square'; osc.frequency.setValueAtTime(2000, ct); g.gain.setValueAtTime(.15, ct); g.gain.exponentialRampToValueAtTime(.001, ct + .04); }
-    else { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, ct); g.gain.setValueAtTime(.15, ct); }
+    const ct = ctx.currentTime, f = osc.frequency, ga = g.gain;
+    const sV = (p, v, t) => p.setValueAtTime(v, t);
+    const eR = (p, v, t) => p.exponentialRampToValueAtTime(v, t);
+    const lR = (p, v, t) => p.linearRampToValueAtTime(v, t);
+
+    switch (type) {
+      case 'pew': osc.type = 'triangle'; sV(f, 800, ct); eR(f, 100, ct + .1); sV(ga, .08, ct); break;
+      case 'dash': osc.type = 'sawtooth'; sV(f, 120, ct); eR(f, 1e3, ct + .12); sV(ga, .12, ct); break;
+      case 'hit': osc.type = 'square'; sV(f, 100, ct); lR(f, 10, ct + .1); sV(ga, .2, ct); lR(ga, 0, ct + .1); break;
+      case 'orb': osc.type = 'sine'; sV(f, 400, ct); eR(f, 1200, ct + .15); sV(ga, .1, ct); break;
+      case 'boost': osc.type = 'sawtooth'; sV(f, 400, ct); eR(f, 20, ct + .3); sV(ga, 0, ct); lR(ga, .4, ct + .03); eR(ga, .001, ct + .35); break;
+      case 'click': osc.type = 'square'; sV(f, 1500, ct); sV(ga, .02, ct); eR(ga, .001, ct + .03); osc.start(); osc.stop(ct + .03); return;
+      case 'whoosh': osc.type = 'sawtooth'; sV(f, 400, ct); eR(f, 50, ct + .3); sV(ga, .05, ct); lR(ga, 0, ct + .3); break;
+      case 'act': osc.type = 'square'; sV(f, 800, ct); eR(f, 1600, ct + .05); sV(ga, .1, ct); lR(ga, 0, ct + .05); break;
+      case 'lock': osc.type = 'square'; sV(f, 2000, ct); sV(ga, .15, ct); eR(ga, .001, ct + .04); break;
+      default: osc.type = 'sawtooth'; sV(f, 120, ct); sV(ga, .15, ct);
+    }
     osc.start(); osc.stop(ct + .5);
   } catch (e) { }
 }
@@ -1607,9 +1627,9 @@ async function saveHighScore(name, score, timeStr, mode) {
 
 function spectacularExplosion(s, x, y, color) {
   playSfx(s, 'boom');
-  explode(s, x, y, color, 40); explode(s, x, y, 0xffffff, 20); explode(s, x, y, 0xffaa00, 30);
+  explode(s, x, y, color, 40); explode(s, x, y, C.white, 20); explode(s, x, y, 0xffaa00, 30);
   for (let i = 0; i < 3; i++) {
-    const ring = s.add.graphics({ x, y }); ring.lineStyle(4, 0xffffff, 0.8).strokeCircle(0, 0, 10);
+    const ring = s.add.graphics({ x, y }); ring.lineStyle(4, C.white, 0.8).strokeCircle(0, 0, 10);
     s.tweens.add({ targets: ring, scale: 15, alpha: 0, duration: 800 + i * 200, onComplete: () => ring.destroy() });
   }
   s.cameras.main.shake(600, 0.04);
@@ -1657,7 +1677,7 @@ function tickMusic(s) {
   else if (b % 4 === 0) playNote(ctx, 60, 'sine', 0.3, 0.2, true); // Normal Kick
 
   // Electric Alert (Replaces xylophone)
-  if (lowHp && b % 2 === 0) playNote(ctx, 80 + Math.random() * 40, 'square', 0.05, 0.1);
+  if (lowHp && b % 2 === 0) playNote(ctx, 80 + rnd() * 40, 'square', 0.05, 0.1);
 
   // Ambient Drone
   if (b % 8 === 0) playNote(ctx, boss ? 35 : 50, 'sawtooth', 0.08, 1.5);
