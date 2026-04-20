@@ -57,7 +57,7 @@ function create() {
     phase: 'loading', mode: 'solo', scores: { p1: 0, p2: 0 }, highScoresSolo: [], highScoresDuel: [], menu: { cursor: 0, cd: 0 },
     nameEntry: { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner: '', score: 0, cd: 0, timeStr: '' },
     spawnTimer: 0, orbTimer: 0, powTimer: 0, round: 1, showerCount: 0, nextRoundTime: 0, startTime: 0,
-    showerPending: false, isShowerActive: false
+    showerPending: false, isShowerActive: false, bossTension: 0
   };
 
   // Parallax Layer 1: Infinite Moving Grid
@@ -703,7 +703,12 @@ function spawnBoss(s) {
     }
   });
 
-  const tx = s.tweens.add({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { if (boss.active) boss.destroy(); } });
+  const tx = s.tweens.add({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { 
+    if (boss.active) {
+      s.tweens.add({ targets: s.state, bossTension: 0, duration: 2000, ease: 'Power2' });
+      boss.destroy(); 
+    }
+  } });
   const ty = s.tweens.add({ targets: boss, y: startY + 120, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   boss.setData('tweens', [tx, ty]);
 
@@ -832,6 +837,7 @@ function dmgEnemy(s, enemy, amt, owner) {
 
     addPoints(s, owner, 1000, x + 80, y + 50);
     spectacularExplosion(s, x + 80, y + 50, 0xff3344);
+    s.tweens.add({ targets: s.state, bossTension: 0, duration: 2000, ease: 'Power2' });
     enemy.destroy();
   }
 }
@@ -990,6 +996,7 @@ function updateRounds(s, time, delta) {
     s.time.delayedCall(2000, () => s.tweens.add({ targets: msg, alpha: 0, scale: 1.5, duration: 500, onComplete: () => msg.destroy() }));
 
     if (s.state.mode === 'solo' && s.state.round % 3 === 0) {
+      s.tweens.add({ targets: s.state, bossTension: 1, duration: 2500, ease: 'Power2' });
       s.time.delayedCall(3000, () => spawnBoss(s));
     }
     if (s.state.round >= 5 && (s.state.round - 5) % 4 === 0) {
@@ -1661,26 +1668,33 @@ function updateMusic(s, time) {
     s.mState = { beat: 0 };
     s.musicTimer = s.time.addEvent({ delay: 150, loop: true, callback: () => tickMusic(s) });
   }
-  const tension = (s.enemies && s.enemies.countActive() > 0) || (s.p1.getData('hp') < 25);
+  const bt = s.state.bossTension || 0;
+  const tension = bt > 0.5 || (s.enemies && s.enemies.countActive() > 0) || (s.p1.getData('hp') < 25);
   s.musicTimer.delay = tension ? 120 : 150;
-  if (s.drone) s.drone.frequency.setTargetAtTime(tension ? 55 : 40, ctx.currentTime, 0.5);
+  const targetFreq = Math.max(40 + bt * 15, (s.p1.getData('hp') < 25) ? 55 : 40);
+  if (s.drone) s.drone.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.5);
 }
 
 function tickMusic(s) {
   const ctx = s.game.sound.context; if (!ctx || !s.mState) return;
   const b = s.mState.beat, round = s.state.round;
-  const boss = s.enemies && s.enemies.countActive() > 0;
+  const bt = s.state.bossTension || 0;
   const lowHp = s.p1.getData('hp') < 25;
 
-  // Villain Bass (Dissonant & Low)
-  if (boss && b % 4 === 0) playNote(ctx, 45, 'sawtooth', 0.25, 0.4, true);
-  else if (b % 4 === 0) playNote(ctx, 60, 'sine', 0.3, 0.2, true); // Normal Kick
+  // Villain Bass (Dissonant & Low) - Fades in/out
+  if (bt > 0.1 && b % 4 === 0) playNote(ctx, 45, 'sawtooth', 0.25 * bt, 0.4, true);
+  
+  // Normal Kick - Fades out as boss arrives
+  if (bt < 0.9 && b % 4 === 0) playNote(ctx, 60, 'sine', 0.3 * (1 - bt), 0.2, true);
 
   // Electric Alert (Replaces xylophone)
   if (lowHp && b % 2 === 0) playNote(ctx, 80 + rnd() * 40, 'square', 0.05, 0.1);
 
-  // Ambient Drone
-  if (b % 8 === 0) playNote(ctx, boss ? 35 : 50, 'sawtooth', 0.08, 1.5);
+  // Ambient Drone - Crossfade
+  if (b % 8 === 0) {
+    if (bt > 0) playNote(ctx, 35, 'sawtooth', 0.08 * bt, 1.5);
+    if (bt < 1) playNote(ctx, 50, 'sawtooth', 0.08 * (1 - bt), 1.5);
+  }
 
   // High Rounds Snare
   if (round >= 3 && (b === 4 || b === 12)) playNote(ctx, 100, 'square', 0.04, 0.1, true);
