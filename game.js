@@ -21,7 +21,7 @@ const POWS = { MISSILE: 'M', FLARE: 'F', SHIELD: 'S', RAPID: 'R' };
 const C = {
   bg: 0x05070a, p1: 0x00ff66, p2: 0xfacc15, debris: 0x444444, orb: 0x00ff88, black: 0,
   white: 0xffffff, accent: 0xfacc15, stable: 0x4fb89a, cell: 0x111111, frame: 0x333333, overlay: 0x020408,
-  energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xffeeaa, shield: 0x00ccff, overdrive: 0xff5d00
+  energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xff9900, shield: 0x00ccff, overdrive: 0xff5d00
 };
 const rnd = (m) => Math.random() * (m || 1), rB = Phaser.Math.Between;
 const SHIP_C = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
@@ -388,10 +388,14 @@ function fireSpecial(s, ship, enemy) {
     mis.setData({ owner: ship.id, target: enemy, expiry: s.time.now + 5000 }); s.missiles.add(mis);
     playSfx(s, 'act');
   } else if (type === POWS.FLARE) {
-    for (let i = 0; i < 5; i++) {
-      const fl = s.add.circle(ship.x, ship.y, 4, C.flare); s.physics.add.existing(fl);
-      fl.body.setVelocity((rnd() - 0.5) * 400, (rnd() - 0.5) * 400).setDrag(200);
-      s.flares.add(fl); s.time.delayedCall(2000 + rnd() * 1000, () => safeDestroy(fl));
+    for (let i = 0; i < 10; i++) {
+      const c = s.add.container(ship.x, ship.y);
+      const fl = s.add.circle(0, 0, 3, C.white), gl = s.add.circle(0, 0, 10, C.flare, 0.5);
+      c.add([gl, fl]); s.physics.add.existing(c);
+      const a = ship.rotation + Math.PI + (rnd() - 0.5) * 2.5, spd = 50 + rnd() * 250;
+      c.body.setCircle(5, -5, -5).setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(300);
+      s.tweens.add({ targets: gl, alpha: 0.1, duration: 50 + rnd() * 50, yoyo: true, repeat: -1 });
+      s.flares.add(c); s.time.delayedCall(1500 + rnd() * 1000, () => safeDestroy(c));
     }
     playSfx(s, 'act');
   }
