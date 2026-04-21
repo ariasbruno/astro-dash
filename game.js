@@ -39,9 +39,10 @@ const CABINET_KEYS = {
   START1: ['Enter'], START2: ['2']
 };
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
-const M = 'monospace', B = 'bold ';
-const f9 = { font: '9px ' + M }, f12 = { font: '12px ' + M }, f13 = { font: '13px ' + M }, f14 = { font: '14px ' + M }, f18 = { font: '18px ' + M };
-const fb12 = { font: B + '12px ' + M }, fb13 = { font: B + '13px ' + M }, fb16 = { font: B + '16px ' + M }, fb18 = { font: B + '18px ' + M }, fb20 = { font: B + '20px ' + M }, fb22 = { font: B + '22px ' + M }, fb24 = { font: B + '24px ' + M }, fb36 = { font: B + '36px ' + M }, fb42 = { font: B + '42px ' + M }, fb64 = { font: B + '64px ' + M }, fb72 = { font: B + '72px ' + M };
+const TX = (s, x, y, t, f, c, o, yO) => {
+  const tx = s.add.text(x, y, t, { font: (f[0] == 'b' ? 'bold ' : '') + f.replace('b', '') + 'px monospace', fill: c });
+  if (o != null) tx.setOrigin(o, yO ?? o); return tx;
+};
 const cA = c2s(C.accent), cS = c2s(C.stable), cSh = c2s(C.shield), cP1 = c2s(C.p1), cP2 = c2s(C.p2);
 
 const config = {
@@ -528,7 +529,7 @@ function spawnMeteor(s, x, y, size = 40, color = C.debris) {
 function updateMeteors(s, time) {
   if (s.state.showerPending) {
     if (!s.hud.clearMsg) {
-      s.hud.clearMsg = s.add.text(W / 2, H - 50, '>>> ALERT: CLEAR SECTOR OF ALL REMAINING HAZARDS <<<', { ...fb20, fill: '#ff4400' }).setOrigin(0.5).setDepth(300);
+      s.hud.clearMsg = TX(s, W / 2, H - 50, '>>> ALERT: CLEAR SECTOR OF ALL REMAINING HAZARDS <<<', 'b20', '#ff4400', 0.5).setDepth(300);
       s.tweens.add({ targets: s.hud.clearMsg, alpha: 0.3, duration: 400, yoyo: true, repeat: -1 });
     }
     let hasBig = false;
@@ -536,7 +537,7 @@ function updateMeteors(s, time) {
     if (!hasBig) {
       if (s.hud.clearMsg) { s.hud.clearMsg.destroy(); s.hud.clearMsg = null; }
       s.state.showerPending = false; s.state.isShowerActive = true; s.state.showerCount++;
-      const msg = s.add.text(W / 2, H / 2 - 100, '!!! METEOR SHOWER !!!', { ...fb36, fill: '#ff0' }).setOrigin(0.5).setDepth(300);
+      const msg = TX(s, W / 2, H / 2 - 100, '!!! METEOR SHOWER !!!', 'b36', '#ff0', 0.5).setDepth(300);
       s.time.delayedCall(2000, () => msg.destroy());
     }
   }
@@ -741,7 +742,7 @@ function spawnBoss(s) {
     });
   }
 
-  const alert = s.add.text(W / 2, 100, '!!! ENEMY INTERCEPTOR !!!', { ...fb24, fill: '#f33' }).setOrigin(0.5).setDepth(500);
+  const alert = TX(s, W / 2, 100, '!!! ENEMY INTERCEPTOR !!!', 'b24', '#f33', 0.5).setDepth(500);
   s.time.delayedCall(2000, () => alert.destroy());
   playSfx(s, 'dash');
 }
@@ -1008,7 +1009,7 @@ function updateHud(s, ship, time) {
 }
 
 function showPoints(s, x, y, amt, color) {
-  const t = s.add.text(x, y, `+${amt}`, { font: 'bold 24px monospace', fill: c2s(color) });
+  const t = TX(s, x, y, `+${amt}`, 'b24', c2s(color));
   t.setOrigin(0.5).setDepth(200);
   s.tweens.add({ targets: t, y: y - 80, alpha: 0, duration: 1000, onComplete: () => t.destroy() });
 }
@@ -1036,7 +1037,7 @@ function updateRounds(s, time, delta) {
     if (s.state.mode === 'duel') addPoints(s, 'p2', bonus);
 
     // Visual Announcement
-    const msg = s.add.text(W / 2, H / 2, `ROUND ${s.state.round}\nMETEOR INTENSITY UP!`, { ...fb42, fill: cA, align: 'center' }).setOrigin(0.5).setDepth(300).setScale(0);
+    const msg = TX(s, W / 2, H / 2, `ROUND ${s.state.round}\nMETEOR INTENSITY UP!`, 'b42', cA, 0.5).setDepth(300).setScale(0).setAlign('center');
     s.tweens.add({ targets: msg, scale: 1, duration: 500, ease: 'Back.out' });
     s.time.delayedCall(2000, () => s.tweens.add({ targets: msg, alpha: 0, scale: 1.5, duration: 500, onComplete: () => msg.destroy() }));
 
@@ -1112,7 +1113,7 @@ function drawShield(s, ship) {
 
 
 function initUi(s) {
-  const f = fb18, sf = f12;
+  const f = 'b18', sf = '12';
 
   // HUD Containers for P1 and P2
   const p1H = s.add.container(25, 25).setDepth(500);
@@ -1120,24 +1121,24 @@ function initUi(s) {
 
   s.hud = {
     p1: {
-      hp: s.add.text(0, 0, 'P1 // HULL OK', { ...f, fill: cP1 }),
-      enBar: s.add.text(0, 25, 'ENERGY: 100%', { ...sf, fill: '#888' }),
+      hp: TX(s, 0, 0, 'P1 // HULL OK', f, cP1),
+      enBar: TX(s, 0, 25, 'ENERGY: 100%', sf, '#888'),
       dodgeInd: s.add.graphics(),
-      shInd: s.add.text(0, 65, '>> DEFENSE: [ SHIELD_UP ]', { ...sf, fill: cSh }).setVisible(false),
-      sp: s.add.text(0, 85, '', { ...sf, fill: '#f22' }),
-      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP1 }),
+      shInd: TX(s, 0, 65, '>> DEFENSE: [ SHIELD_UP ]', sf, cSh).setVisible(false),
+      sp: TX(s, 0, 85, '', sf, '#f22'),
+      score: TX(s, 0, 105, 'ARCHIVE: 000000', sf, cP1),
       lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
     p2: {
-      hp: s.add.text(0, 0, 'P2 // HULL OK', { ...f, fill: cP2 }).setOrigin(1, 0),
-      enBar: s.add.text(0, 25, 'ENERGY: 100%', { ...sf, fill: '#888' }).setOrigin(1, 0),
+      hp: TX(s, 0, 0, 'P2 // HULL OK', f, cP2, 1, 0),
+      enBar: TX(s, 0, 25, 'ENERGY: 100%', sf, '#888', 1, 0),
       dodgeInd: s.add.graphics(),
-      shInd: s.add.text(0, 65, '[ SHIELD_UP ] :DEFENSE <<', { ...sf, fill: cSh }).setOrigin(1, 0).setVisible(false),
-      sp: s.add.text(0, 85, '', { ...sf, fill: cP2 }).setOrigin(1, 0),
-      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP2 }).setOrigin(1, 0),
+      shInd: TX(s, 0, 65, '[ SHIELD_UP ] :DEFENSE <<', sf, cSh, 1, 0).setVisible(false),
+      sp: TX(s, 0, 85, '', sf, cP2, 1, 0),
+      score: TX(s, 0, 105, 'ARCHIVE: 000000', sf, cP2, 1, 0),
       lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
-    timer: s.add.text(W / 2, 25, '', { ...fb16, fill: '#888' }).setOrigin(0.5).setDepth(500)
+    timer: TX(s, W / 2, 25, '', 'b16', '#888', 0.5).setDepth(500)
   };
 
   p1H.add([s.hud.p1.hp, s.hud.p1.enBar, s.hud.p1.dodgeInd, s.hud.p1.shInd, s.hud.p1.sp, s.hud.p1.score]);
@@ -1152,7 +1153,7 @@ function initUi(s) {
 function createModeSelectScreen(s) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 1));
-  c.add(s.add.text(W / 2, 120, 'SELECT OPERATION', { ...fb42, fill: cA }).setOrigin(0.5));
+  c.add(TX(s, W / 2, 120, 'SELECT OPERATION', 'b42', cA, 0.5));
 
   const modes = [
     { id: 'solo', name: '1 PLAYER: RESISTANCE', desc: 'Survive the meteor storm as long as possible.' },
@@ -1162,12 +1163,12 @@ function createModeSelectScreen(s) {
   const btns = modes.map((m, i) => {
     const y = 280 + i * 140;
     const bg = s.add.rectangle(W / 2, y, 500, 100, C.cell).setStrokeStyle(2, C.frame);
-    const title = s.add.text(W / 2, y - 20, m.name, { ...fb24, fill: '#fff' }).setOrigin(0.5);
-    const desc = s.add.text(W / 2, y + 20, m.desc, { ...f14, fill: cS }).setOrigin(0.5);
+    const title = TX(s, W / 2, y - 20, m.name, 'b24', '#fff', 0.5);
+    const desc = TX(s, W / 2, y + 20, m.desc, '14', cS, 0.5);
     c.add([bg, title, desc]); return { bg, title, desc };
   });
 
-  const help = s.add.text(W / 2, H - 60, 'JOYSTICK U/D: NAVIGATE | START: INITIATE', { ...f14, fill: '#888' }).setOrigin(0.5);
+  const help = TX(s, W / 2, H - 60, 'JOYSTICK U/D: NAVIGATE | START: INITIATE', '14', '#888', 0.5);
   c.add(help);
 
   return { c, btns };
@@ -1176,15 +1177,15 @@ function createModeSelectScreen(s) {
 function createNameEntryScreen(s) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 0.98));
-  const t1 = s.add.text(W / 2, 120, 'NEW HIGH SCORE!', { ...fb42, fill: cA }).setOrigin(0.5);
-  const t2 = s.add.text(W / 2, 180, 'PILOT IDENTIFICATION', { ...fb24, fill: '#fff' }).setOrigin(0.5);
+  const t1 = TX(s, W / 2, 120, 'NEW HIGH SCORE!', 'b42', cA, 0.5);
+  const t2 = TX(s, W / 2, 180, 'PILOT IDENTIFICATION', 'b24', '#fff', 0.5);
 
-  const charTexts = [0, 1, 2].map(i => s.add.text(W / 2 - 60 + i * 60, H / 2, 'A', { ...fb64, fill: '#fff' }).setOrigin(0.5));
+  const charTexts = [0, 1, 2].map(i => TX(s, W / 2 - 60 + i * 60, H / 2, 'A', 'b64', '#fff', 0.5));
   const underline = s.add.graphics().lineStyle(4, C.accent).lineBetween(-25, 40, 25, 40);
   const cursor = s.add.container(W / 2 - 60, H / 2).add(underline);
 
-  const confirmMsg = s.add.text(W / 2, H / 2 + 80, '>>> CONFIRM NAME? [START] YES / [ACTION] EDIT <<<', { ...fb18, fill: cP2 }).setOrigin(0.5).setVisible(false);
-  const help = s.add.text(W / 2, H - 120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM NAME', { ...fb16, fill: cS, align: 'center' }).setOrigin(0.5);
+  const confirmMsg = TX(s, W / 2, H / 2 + 80, '>>> CONFIRM NAME? [START] YES / [ACTION] EDIT <<<', 'b18', cP2, 0.5).setVisible(false);
+  const help = TX(s, W / 2, H - 120, 'JOYSTICK L/R: POSITION | U/D: CHANGE CHAR\nSTART: CONFIRM NAME', 'b16', cS, 0.5).setAlign('center');
 
   c.add([t1, t2, ...charTexts, cursor, confirmMsg, help]);
   return { c, chars: charTexts, cursor, t1, help, confirmMsg };
@@ -1197,8 +1198,8 @@ function createStartScreen(s) {
   // OS Header
   const headerBg = s.add.graphics().fillStyle(0x0a0a0a, 0.9).fillRect(0, 0, W, 50);
   const headerLine = s.add.graphics().lineStyle(2, C.accent, 0.5).lineBetween(0, 50, W, 50);
-  const osTitle = s.add.text(25, 15, 'ASTRO_DASH // V1.0', { ...fb18, fill: cA });
-  const sysInfo = s.add.text(W - 25, 18, 'CORE_TEMP: 42°C | MEMORY: 92% | SECTOR: 7G', { ...f12, fill: cS }).setOrigin(1, 0);
+  const osTitle = TX(s, 25, 15, 'ASTRO_DASH // V1.0', 'b18', cA);
+  const sysInfo = TX(s, W - 25, 18, 'CORE_TEMP: 42°C | MEMORY: 92% | SECTOR: 7G', '12', cS, 1, 0);
   c.add([headerBg, headerLine, osTitle, sysInfo]);
 
   s.time.addEvent({
@@ -1212,29 +1213,29 @@ function createStartScreen(s) {
   // Left Section: Interaction Console
   const leftX = 50, leftY = 100, leftW = 320, leftH = 440;
   const leftBox = drawTechFrame(s, leftX, leftY, leftW, leftH, C.frame);
-  const leftTitle = s.add.text(leftX + leftW / 2, leftY + 30, '┌ PILOT CONSOLE ┐', { ...fb24, fill: '#fff' }).setOrigin(0.5, 0);
-  const leftSub = s.add.text(leftX + leftW / 2, leftY + 70, 'STATION_7G // STANDBY', { ...f12, fill: cS }).setOrigin(0.5, 0);
+  const leftTitle = TX(s, leftX + leftW / 2, leftY + 30, '┌ PILOT CONSOLE ┐', 'b24', '#fff', 0.5, 0);
+  const leftSub = TX(s, leftX + leftW / 2, leftY + 70, 'STATION_7G // STANDBY', '12', cS, 0.5, 0);
   c.add([leftBox, leftTitle, leftSub]);
 
   const buttons = ['PLAY', 'HELP', 'TEST'];
   const btns = buttons.map((txt, i) => {
     const y = leftY + 180 + i * 85;
     const bg = s.add.rectangle(leftX + leftW / 2, y, 240, 55, C.cell).setStrokeStyle(2, C.frame);
-    const label = s.add.text(leftX + leftW / 2, y, `[ ${txt} ]`, { ...fb20, fill: '#fff' }).setOrigin(0.5);
+    const label = TX(s, leftX + leftW / 2, y, `[ ${txt} ]`, 'b20', '#fff', 0.5);
     c.add([bg, label]); return { bg, label };
   });
 
   // Right Section: Global Ranking
   const rightX = 400, rightY = 100, rightW = 350, rightH = 440;
   const rightBox = drawTechFrame(s, rightX, rightY, rightW, rightH, C.frame);
-  const rightTitle = s.add.text(rightX + rightW / 2, rightY + 30, '┌ PILOT RANKINGS ┐', { ...fb24, fill: '#fff' }).setOrigin(0.5, 0);
+  const rightTitle = TX(s, rightX + rightW / 2, rightY + 30, '┌ PILOT RANKINGS ┐', 'b24', '#fff', 0.5, 0);
   c.add([rightBox, rightTitle]);
 
-  const sbSoloHeader = s.add.text(rightX + 90, rightY + 100, '--- SOLO_RECORD ---', { ...fb12, fill: cP1 }).setOrigin(0.5);
-  const sbSoloText = s.add.text(rightX + 90, rightY + 130, 'LOADING...', { ...f13, fill: '#fff', align: 'center', lineSpacing: 4 }).setOrigin(0.5, 0);
+  const sbSoloHeader = TX(s, rightX + 90, rightY + 100, '--- SOLO_RECORD ---', 'b12', cP1, 0.5);
+  const sbSoloText = TX(s, rightX + 90, rightY + 130, 'LOADING...', '13', '#fff', 0.5, 0).setAlign('center').setLineSpacing(4);
 
-  const sbDuelHeader = s.add.text(rightX + 260, rightY + 100, '--- DUEL_RECORD ---', { ...fb12, fill: cP2 }).setOrigin(0.5);
-  const sbDuelText = s.add.text(rightX + 260, rightY + 130, 'LOADING...', { ...f13, fill: '#fff', align: 'center', lineSpacing: 4 }).setOrigin(0.5, 0);
+  const sbDuelHeader = TX(s, rightX + 260, rightY + 100, '--- DUEL_RECORD ---', 'b12', cP2, 0.5);
+  const sbDuelText = TX(s, rightX + 260, rightY + 130, 'LOADING...', '13', '#fff', 0.5, 0).setAlign('center').setLineSpacing(4);
 
   c.add([sbSoloHeader, sbSoloText, sbDuelHeader, sbDuelText]);
 
@@ -1255,7 +1256,7 @@ function drawTechFrame(s, x, y, w, h, color) {
   g.lineBetween(x + w, y + h, x + w - l, y + h); g.lineBetween(x + w, y + h, x + w, y + h - l); // BR
 
   // Tech labels
-  const label = s.add.text(x + w - 5, y + h + 5, 'SYS_REF: ' + rnd().toString(16).slice(2, 8).toUpperCase(), { ...f9, fill: c2s(color) }).setOrigin(1, 0).setAlpha(0.6);
+  const label = TX(s, x + w - 5, y + h + 5, 'SYS_REF: ' + rnd().toString(16).slice(2, 8).toUpperCase(), '9', c2s(color), 1, 0).setAlpha(0.6);
   const container = s.add.container(0, 0, [g, label]);
   return container;
 }
@@ -1274,11 +1275,11 @@ function drawHazardStripes(s, container, x, y, w, h) {
 function createOverlay(s, title, buttons) {
   const c = s.add.container(0, 0).setDepth(1000).setVisible(false);
   c.add(s.add.rectangle(W / 2, H / 2, W, H, C.overlay, 1));
-  const tText = s.add.text(W / 2, 140, title, { ...fb64, fill: cA }).setOrigin(0.5);
+  const tText = TX(s, W / 2, 140, title, 'b64', cA, 0.5);
   c.add(tText);
   const btns = buttons.map((txt, i) => {
     const y = 300 + i * 70; const bg = s.add.rectangle(W / 2, y, 280, 45, C.cell).setStrokeStyle(2, C.frame);
-    const label = s.add.text(W / 2, y, `[ ${txt} ]`, { ...fb22, fill: '#fff' }).setOrigin(0.5);
+    const label = TX(s, W / 2, y, `[ ${txt} ]`, 'b22', '#fff', 0.5);
     c.add([bg, label]); return { bg, label };
   });
   return { c, btns, t: tText };
@@ -1426,8 +1427,8 @@ function endMatch(s) {
     const scoreBox = drawTechFrame(s, W / 2 - 180, 210, 360, 240, C.frame);
     s.scrGameOver.c.add(scoreBox);
 
-    const scoreLabel = s.add.text(W / 2, 235, '--- RECOVERY_COMPLETE ---', { ...f14, fill: cS }).setOrigin(0.5);
-    const scoreVal = s.add.text(W / 2, 300, '000000', { ...fb72, fill: '#fff' }).setOrigin(0.5);
+    const scoreLabel = TX(s, W / 2, 235, '--- RECOVERY_COMPLETE ---', '14', cS, 0.5);
+    const scoreVal = TX(s, W / 2, 300, '000000', 'b72', '#fff', 0.5);
     s.scrGameOver.c.add([scoreLabel, scoreVal]);
 
     if (s.state.goTimer) { s.state.goTimer.remove(); s.state.goTimer = null; }
@@ -1440,8 +1441,8 @@ function endMatch(s) {
         if (cur < score) playSfx(s, 'click');
         else {
           scoreLabel.setText(isHS ? '!! NEW_RECORD_DETECTED !!' : '>> DATA_ARCHIVED_SUCCESSFULLY');
-          const timeInfo = s.add.text(W / 2, 370, `FLIGHT_TIME: ${timeStr}`, { ...f18, fill: '#888' }).setOrigin(0.5).setAlpha(0);
-          const prompt = s.add.text(W / 2, 420, isHS ? 'PRESS START TO SYNC DATA' : 'PRESS START TO DISCONNECT', { font: 'bold 16px monospace', fill: isHS ? cA : '#666' }).setOrigin(0.5).setAlpha(0);
+          const timeInfo = TX(s, W / 2, 370, `FLIGHT_TIME: ${timeStr}`, '18', '#888', 0.5).setAlpha(0);
+          const prompt = TX(s, W / 2, 420, isHS ? 'PRESS START TO SYNC DATA' : 'PRESS START TO DISCONNECT', 'b16', isHS ? cA : '#666', 0.5).setAlpha(0);
           s.scrGameOver.c.add([timeInfo, prompt]);
           s.tweens.add({ targets: [timeInfo, prompt], alpha: 1, y: '+=10', duration: 500 });
           s.state.gameoverDone = true; s.state.isHS = isHS; s.state.winId = winId; s.state.score = score; s.state.timeStr = timeStr;
@@ -1455,7 +1456,7 @@ function endMatch(s) {
     else {
       s.scrGameOver.c.setVisible(true);
       const msg = winId === 'p1' ? 'PLAYER 1 WINS!' : 'PLAYER 2 WINS!';
-      const info = s.add.text(W / 2, 240, msg, { ...fb36, fill: '#fff' }).setOrigin(0.5);
+      const info = TX(s, W / 2, 240, msg, 'b36', '#fff', 0.5);
       s.scrGameOver.c.add(info);
       s.state.gameoverDone = true;
     }
@@ -1548,7 +1549,7 @@ function showHelp(s) {
   s.scrGeneric.t.setText('OPERATIONAL INTEL').setFontSize(48).setY(80);
   const c = s.scrGeneric.c;
 
-  const ctrl = s.add.text(W / 2, 140, 'JOYSTICK: MOVE | BTN 1-3: FIRE | BTN 4: BOOST | BTN 6: SPECIAL', { ...fb13, fill: '#888' }).setOrigin(0.5);
+  const ctrl = TX(s, W / 2, 140, 'JOYSTICK: MOVE | BTN 1-3: FIRE | BTN 4: BOOST | BTN 6: SPECIAL', 'b13', '#888', 0.5);
   c.add(ctrl);
 
   const items = [
@@ -1569,12 +1570,12 @@ function showHelp(s) {
     s.tweens.add({ targets: box, angle: 360, duration: 4000, repeat: -1 });
     s.tweens.add({ targets: box, scale: 1.15, duration: 800, yoyo: true, repeat: -1 });
 
-    const name = s.add.text(x + 45, y - 18, item.n, { ...fb18, fill: c2s(item.c) }).setOrigin(0, 0.5);
-    const desc = s.add.text(x + 45, y + 18, item.d, { ...f12, fill: '#bbb' }).setOrigin(0, 0.5);
+    const name = TX(s, x + 45, y - 18, item.n, 'b18', c2s(item.c), 0, 0.5);
+    const desc = TX(s, x + 45, y + 18, item.d, '12', '#bbb', 0, 0.5);
     c.add([name, desc]);
   });
 
-  const tip = s.add.text(W / 2, H - 60, 'TIP: BOOST ENABLES INERTIAL DRIFT! ROTATE AND FIRE WHILE SLIDING.', { ...fb13, fill: cS }).setOrigin(0.5);
+  const tip = TX(s, W / 2, H - 60, 'TIP: BOOST ENABLES INERTIAL DRIFT! ROTATE AND FIRE WHILE SLIDING.', 'b13', cS, 0.5);
   c.add(tip);
 }
 
@@ -1586,10 +1587,10 @@ function showTestScreen(s) {
   codes.forEach((c, i) => {
     const x = c.startsWith('P1') ? W * 0.25 : (c.startsWith('P2') ? W * 0.75 : W * 0.5);
     const y = 220 + (i % 10) * 35;
-    const txt = s.add.text(x, y, c, { ...fb18, fill: '#444' }).setOrigin(0.5);
+    const txt = TX(s, x, y, c, 'b18', '#444', 0.5);
     s.scrGeneric.c.add(txt); s.testTexts[c] = txt;
   });
-  const hint = s.add.text(W / 2, 550, 'PRESS START TO EXIT', { ...f14, fill: '#888' }).setOrigin(0.5);
+  const hint = TX(s, W / 2, 550, 'PRESS START TO EXIT', '14', '#888', 0.5);
   s.scrGeneric.c.add(hint);
 }
 
