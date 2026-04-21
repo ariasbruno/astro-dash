@@ -358,10 +358,14 @@ function updateShipVisuals(ship) {
 
 
 function fireBullet(s, ship) {
-  const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22;
-  const b = s.add.container(x, y); b.add(s.add.circle(0, 0, 3, ship.getData('shipColor') || ship.getData('color')));
-  s.physics.add.existing(b); b.body.setCircle(3, -3, -3).setVelocity(Math.cos(ship.rotation) * 1000, Math.sin(ship.rotation) * 1000);
-  b.setData({ owner: ship.id, color: ship.getData('shipColor') || ship.getData('color') });
+  const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22, color = ship.getData('shipColor') || ship.getData('color');
+  const b = s.add.container(x, y); b.rotation = ship.rotation;
+  const laser = s.add.rectangle(0, 0, 10, 2, color);
+  const core = s.add.rectangle(0, 0, 8, 1, 0xffffff);
+  const glow = s.add.rectangle(0, 0, 14, 4, color, 0.4);
+  b.add([glow, laser, core]);
+  s.physics.add.existing(b); b.body.setCircle(3, -3, -3).setVelocity(Math.cos(ship.rotation) * 1200, Math.sin(ship.rotation) * 1200);
+  b.setData({ owner: ship.id, color });
   s.bullets.add(b); playSfx(s, 'pew');
 }
 
