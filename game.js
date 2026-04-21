@@ -957,6 +957,10 @@ function dmgShip(ship, amt) {
   }
   const hp = Math.max(0, ship.hp - amt); ship.hp = hp;
 
+  // Health Loss Indicator
+  const ht = TX(S, ship.x, ship.y - 20, `HULL -${amt}`, 'b18', '#ff3344').setOrigin(0.5).setDepth(200);
+  tween({ targets: ht, y: ship.y + 60, alpha: 0, duration: 800, onComplete: () => ht.destroy() });
+
   // Hit Feedback: Sound, Stop & Shake
   playSfx('hit');
   const intens = 0.01 + (amt * 0.001);
@@ -1194,7 +1198,7 @@ function initUi() {
       dodgeInd: S.add.graphics(),
       shInd: TX(S, 0, 65, '>> DEFENSE: [ SHIELD_UP ]', sf, cSh).setVisible(false),
       sp: TX(S, 0, 85, '', sf, '#f22'),
-      score: TX(S, 0, 105, 'ARCHIVE: 000000', sf, cP1),
+      score: TX(S, 0, H - 75, 'ARCHIVE: 000000', 'b14', cP1),
       lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
     p2: {
@@ -1203,7 +1207,7 @@ function initUi() {
       dodgeInd: S.add.graphics(),
       shInd: TX(S, 0, 65, '[ SHIELD_UP ] :DEFENSE <<', sf, cSh, 1, 0).setVisible(false),
       sp: TX(S, 0, 85, '', sf, cP2, 1, 0),
-      score: TX(S, 0, 105, 'ARCHIVE: 000000', sf, cP2, 1, 0),
+      score: TX(S, 0, H - 75, 'ARCHIVE: 000000', 'b14', cP2, 1, 0),
       lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
     timer: TX(S, W / 2, 25, '', 'b16', '#888', 0.5).setDepth(500)
