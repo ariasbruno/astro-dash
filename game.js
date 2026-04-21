@@ -393,15 +393,18 @@ function fireSpecial(ship, enemy) {
     playSfx('act');
   } else if (type === POWS.FLARE) {
     for (let i = 0; i < 10; i++) {
-      const c = S.add.container(ship.x, ship.y);
-      const fl = S.add.circle(0, 0, 3, C.white), gl = S.add.circle(0, 0, 10, C.flare, 0.5);
-      c.add([gl, fl]); S.physics.add.existing(c);
-      const a = ship.rotation + Math.PI + (rnd() - 0.5) * 2.5, spd = 50 + rnd() * 250;
-      c.body.setCircle(5, -5, -5).setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(300);
-      S.tweens.add({ targets: gl, alpha: 0.1, duration: 50 + rnd() * 50, yoyo: true, repeat: -1 });
-      S.flares.add(c); S.time.delayedCall(1500 + rnd() * 1000, () => safeDestroy(c));
+      S.time.delayedCall(i * 50, () => {
+        if (!ship.active || ship.dead) return;
+        const c = S.add.container(ship.x, ship.y);
+        const fl = S.add.circle(0, 0, 3, C.white), gl = S.add.circle(0, 0, 10, C.flare, 0.5);
+        c.add([gl, fl]); S.physics.add.existing(c);
+        const a = ship.rotation + Math.PI + (rnd() - 0.5) * 2.5, spd = 50 + rnd() * 250;
+        c.body.setCircle(5, -5, -5).setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(300);
+        S.tweens.add({ targets: gl, alpha: 0.1, duration: 50 + rnd() * 50, yoyo: true, repeat: -1 });
+        S.flares.add(c); S.time.delayedCall(1500 + rnd() * 1000, () => safeDestroy(c));
+        playSfx('mortar');
+      });
     }
-    playSfx('act');
   }
   const next = count - 1; Object.assign(ship, { spCount: next, spType: next <= 0 ? null : type });
 }
@@ -1263,7 +1266,7 @@ function createStartScreen() {
   // OS Header
   const headerBg = S.add.graphics().fillStyle(0x0a0a0a, 0.9).fillRect(0, 0, W, 50);
   const headerLine = S.add.graphics().lineStyle(2, C.accent, 0.5).lineBetween(0, 50, W, 50);
-  const osTitle = TX(S, 25, 15, 'ASTRO_DASH // V1.0', 'b18', cA);
+  const osTitle = TX(S, 25, 15, 'ASTRO_DASH // V5', 'b18', cA);
   const sysInfo = TX(S, W - 25, 18, 'CORE_TEMP: 42°C | MEMORY: 92% | SECTOR: 7G', '12', cS, 1, 0);
   c.add([headerBg, headerLine, osTitle, sysInfo]);
 
@@ -1715,6 +1718,13 @@ function playSfx(type) {
       case 'lock': osc.type = 'sine'; swp(f, 1500, 500, .1, 1); swp(ga, .1, .001, .1, 1); break;
       case 'boom': osc.type = 'sawtooth'; swp(f, 200, 20, .4, 1); swp(ga, .3, .001, .4, 1); break;
       case 'launch': osc.type = 'sawtooth'; swp(f, 60, 400, .2, 1); swp(ga, .3, .001, .2, 1); break;
+      case 'mortar': {
+        osc.type = 'triangle'; swp(f, 250, 40, .1, 1); swp(ga, .3, .001, .1, 1);
+        const o2 = ctx.createOscillator(), g2 = ctx.createGain(); o2.connect(g2); g2.connect(ctx.destination);
+        o2.type = 'sine'; swp(o2.frequency, 600, 1800, .08, 1); swp(g2.gain, .1, .001, .08, 1);
+        o2.start(); o2.stop(ct + .08);
+        break;
+      }
       case 'thrum': osc.type = 'triangle'; swp(f, 100, 60, .15, 1); swp(ga, .08, .001, .15, 1); break;
       case 'mExp': {
         osc.type = 'sawtooth'; swp(f, 250, 10, .6, 1); swp(ga, .5, .001, .6, 1);
