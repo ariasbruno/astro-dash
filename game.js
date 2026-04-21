@@ -28,6 +28,8 @@ const rnd = (m) => Math.random() * (m || 1), rB = Phaser.Math.Between;
 const dist = Phaser.Math.Distance.Between, tween = (c) => S.tweens.add(c);
 const delay = (ms, cb) => S.time.delayedCall(ms, cb), addPhys = (o) => S.physics.add.existing(o);
 const SHIP_C = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
+const S_SOLO = 'solo', S_DUEL = 'duel', S_PLAY = 'playing', S_GO = 'gameover', S_NE = 'nameEntry', S_LOAD = 'loading';
+const drawS = (g, p) => { g.moveTo(p[0], p[1]); for(let i=2; i<p.length; i+=2) g.lineTo(p[i], p[i+1]); return g; };
 
 
 const c2s = (c) => '#' + c.toString(16).padStart(6, '0');
@@ -62,7 +64,7 @@ function preload() { }
 function create() {
   S = this;
   S.state = {
-    phase: 'loading', mode: 'solo', scores: { p1: 0, p2: 0 }, menu: { cursor: 0, cd: 0 }, round: 1,
+    phase: S_LOAD, mode: S_SOLO, scores: { p1: 0, p2: 0 }, menu: { cursor: 0, cd: 0 }, round: 1,
     hSS: [], // highScoresSolo
     hSD: [], // highScoresDuel
     nE: { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner: '', score: 0, cd: 0, timeStr: '' }, // nameEntry
@@ -161,7 +163,7 @@ function update(time, delta) {
   else if (p === 'modeSelect') handleModeSelect(time);
   else if (p === 'leaderboard' || p === 'help') { if (consume(['START1', 'START2', 'P1_1', 'P2_1'])) showStartScreen(); }
   else if (p === 'test') { if (consume(['START1', 'START2'])) showStartScreen(); }
-  else if (p === 'playing') {
+  else if (p === S_PLAY) {
     updateShips(time, delta); updateMeteors(time); updateOrbs(time); updatePowerups(time); updateMissiles(time);
     updateRounds(time, delta);
 
@@ -176,13 +178,13 @@ function update(time, delta) {
     if (consume(['START1', 'START2'])) pauseMatch();
   }
   else if (p === 'paused') { if (consume(['START1', 'START2'])) resumeMatch(); }
-  else if (p === 'gameover') {
+  else if (p === S_GO) {
     if (consume(['START1', 'START2', 'P1_1', 'P2_1'])) {
-      if (S.state.mode === 'solo' && S.state.gameoverDone && S.state.isHS) showNameEntry(S.state.winId, S.state.score, S.state.timeStr);
+      if (S.state.mode === S_SOLO && S.state.gameoverDone && S.state.isHS) showNameEntry(S.state.winId, S.state.score, S.state.timeStr);
       else if (S.state.gameoverDone) returnToStart();
     }
   }
-  else if (p === 'nameEntry') handleNameEntry(time);
+  else if (p === S_NE) handleNameEntry(time);
   if (p === 'test') updateTestScreen();
   updateMusic(time);
 }
@@ -193,21 +195,10 @@ function createShip(x, y, id, color) {
   const g = S.add.graphics();
 
   // Main Hull (Scaled Down Aggressive Design)
-  g.lineStyle(2, color).beginPath()
-    .moveTo(16, 0)      // Front tip
-    .lineTo(4, 9)       // Top wing start
-    .lineTo(-9, 10)     // Top wing end
-    .lineTo(-6, 4)      // Tech notch
-    .lineTo(-11, 4)     // Reactor base
-    .lineTo(-11, -4)    // Reactor base
-    .lineTo(-6, -4)     // Tech notch
-    .lineTo(-9, -10)    // Bottom wing end
-    .lineTo(4, -9)      // Bottom wing start
-    .closePath().strokePath();
+  drawS(g.lineStyle(2, color).beginPath(), [16, 0, 4, 9, -9, 10, -6, 4, -11, 4, -11, -4, -6, -4, -9, -10, 4, -9]).closePath().strokePath();
 
   // Cockpit & Interior Detailing
-  g.lineStyle(1, color, 0.6).beginPath()
-    .moveTo(7, 0).lineTo(0, 3).lineTo(-4, 0).lineTo(0, -3).closePath().strokePath();
+  drawS(g.lineStyle(1, color, 0.6).beginPath(), [7, 0, 0, 3, -4, 0, 0, -3]).closePath().strokePath();
 
   // Hull Reinforcement Lines
   g.lineStyle(1, color, 0.4);
@@ -233,11 +224,11 @@ function createShip(x, y, id, color) {
 function updateShips(time, delta) {
   [S.p1, S.p2].forEach((ship, i) => {
     if (ship.dead) return;
-    if (S.state.mode === 'solo' && !ship.isP1) return;
+    if (S.state.mode === S_SOLO && !ship.isP1) return;
     const p = i === 0 ? 'P1' : 'P2', opp = i === 0 ? S.p2 : S.p1;
     const b = ship.body, curE = ship.energy;
 
-    const isSolo = S.state.mode === 'solo' && ship === S.p1;
+    const isSolo = S.state.mode === S_SOLO && ship === S.p1;
     let vx = (held(p + '_R') || (isSolo && held('P2_R')) ? 1 : 0) - (held(p + '_L') || (isSolo && held('P2_L')) ? 1 : 0);
     let vy = (held(p + '_D') || (isSolo && held('P2_D')) ? 1 : 0) - (held(p + '_U') || (isSolo && held('P2_U')) ? 1 : 0);
     const speed = b.speed, isO = time < ship.overdriveUntil;
@@ -474,7 +465,7 @@ function drawPowerupIcon(g, type, color, sz) {
   g.clear();
   g.lineStyle(2, color).fillStyle(color, 0.2);
   if (type === POWS.MISSILE) {
-    g.beginPath().moveTo(0, -sz).lineTo(sz * 0.8, sz).lineTo(0, sz * 0.5).lineTo(-sz * 0.8, sz).closePath().fillPath().strokePath();
+    drawS(g.beginPath(), [0, -sz, sz * 0.8, sz, 0, sz * 0.5, -sz * 0.8, sz]).closePath().fillPath().strokePath();
     g.lineStyle(1, C.white, 0.5).strokeCircle(0, 0, sz * 0.4);
   } else if (type === POWS.FLARE) {
     for (let i = 0; i < 8; i++) {
@@ -487,7 +478,7 @@ function drawPowerupIcon(g, type, color, sz) {
     g.beginPath(); g.moveTo(pts[0].x, pts[0].y); pts.forEach(p => g.lineTo(p.x, p.y)); g.closePath().fillPath().strokePath();
     g.lineStyle(1, color, 0.4).strokeCircle(0, 0, sz * 0.6);
   } else if (type === POWS.RAPID) {
-    g.beginPath().moveTo(-sz / 2, -sz).lineTo(sz / 2, -sz / 4).lineTo(0, 0).lineTo(sz / 2, sz).lineTo(-sz / 2, sz / 4).lineTo(0, 0).closePath().fillPath().strokePath();
+    drawS(g.beginPath(), [-sz / 2, -sz, sz / 2, -sz / 4, 0, 0, sz / 2, sz, -sz / 2, sz / 4, 0, 0]).closePath().fillPath().strokePath();
   } else { // REPAIR (+)
     const r = sz * 0.4;
     g.lineStyle(2, color).strokeRoundedRect(-sz, -r, sz * 2, r * 2, 2).strokeRoundedRect(-r, -sz, r * 2, sz * 2, 2).fillRoundedRect(-sz, -r, sz * 2, r * 2, 2).fillRoundedRect(-r, -sz, r * 2, sz * 2, 2);
@@ -660,32 +651,30 @@ function spawnBoss() {
 
   // V-Wings (Detailed layers)
   g.lineStyle(2, nRed).fillStyle(dBody);
-  g.beginPath().moveTo(100, 40).lineTo(0, -30).lineTo(40, 15).lineTo(90, 45).closePath().fillPath().strokePath();
-  g.beginPath().moveTo(100, 60).lineTo(0, 130).lineTo(40, 85).lineTo(90, 55).closePath().fillPath().strokePath();
+  drawS(g.beginPath(), [100, 40, 0, -30, 40, 15, 90, 45]).closePath().fillPath().strokePath();
+  drawS(g.beginPath(), [100, 60, 0, 130, 40, 85, 90, 55]).closePath().fillPath().strokePath();
 
   // Wing Ribs
   g.lineStyle(1, nRed, 0.4);
   for (let i = 1; i < 4; i++) {
-    g.beginPath().moveTo(12 * i, -30 + 22 * i).lineTo(25 * i, -5 + 18 * i).strokePath();
-    g.beginPath().moveTo(12 * i, 130 - 22 * i).lineTo(25 * i, 105 - 18 * i).strokePath();
+    drawS(g.beginPath(), [12 * i, -30 + 22 * i, 25 * i, -5 + 18 * i]).strokePath();
+    drawS(g.beginPath(), [12 * i, 130 - 22 * i, 25 * i, 105 - 18 * i]).strokePath();
   }
 
   // Central Hull & Brackets
   g.lineStyle(2, nRed).fillStyle(dBody);
-  g.beginPath().moveTo(160, 50).lineTo(80, 20).lineTo(50, 50).lineTo(80, 80).closePath().fillPath().strokePath();
+  drawS(g.beginPath(), [160, 50, 80, 20, 50, 50, 80, 80]).closePath().fillPath().strokePath();
 
   g.lineStyle(1, nRed, 0.4);
-  g.beginPath().moveTo(150, 30).lineTo(175, 30).lineTo(175, 45).strokePath();
-  g.beginPath().moveTo(150, 70).lineTo(175, 70).lineTo(175, 55).strokePath();
+  drawS(g.beginPath(), [150, 30, 175, 30, 175, 45]).strokePath();
+  drawS(g.beginPath(), [150, 70, 175, 70, 175, 55]).strokePath();
 
   // Circuitry & Indicators
   g.lineStyle(1, nOrng);
-  g.beginPath().moveTo(40, 25).lineTo(80, 40).strokePath();
-  g.beginPath().moveTo(40, 75).lineTo(80, 60).strokePath();
+  drawS(g.beginPath(), [40, 25, 80, 40]).strokePath();
+  drawS(g.beginPath(), [40, 75, 80, 60]).strokePath();
 
-  const drawT = (x, y, sz) => {
-    g.fillStyle(nOrng).beginPath().moveTo(x, y - sz).lineTo(x + sz, y + sz).lineTo(x - sz, y + sz).closePath().fill();
-  };
+  const drawT = (x, y, sz) => drawS(g.fillStyle(nOrng).beginPath(), [x, y - sz, x + sz, y + sz, x - sz, y + sz]).closePath().fill();
   [[15, -15], [15, 115], [125, 35], [125, 65], [60, 50]].forEach(p => drawT(p[0], p[1], 3));
 
   // Glowing Components
@@ -745,7 +734,7 @@ function spawnBoss() {
 
   S.time.addEvent({
     delay: 2500, loop: true, callback: () => {
-      if (!boss.active || boss.dead || S.state.phase !== 'playing') return;
+      if (!boss.active || boss.dead || S.state.phase !== S_PLAY) return;
       const dst = dist(boss.x + 80, boss.y + 50, S.p1.x, S.p1.y);
       if (dst < 450) {
         for (let i = 0; i < 3; i++) {
@@ -781,7 +770,7 @@ function spawnBoss() {
   for (let i = 0; i < missileCount; i++) {
     const delay = windowStart + (i * step) + (rnd() * step * 0.8);
     S.time.delayedCall(Math.min(delay, duration - 500), () => {
-      if (boss && boss.active && S.state.phase === 'playing') fireBossMissile(boss);
+      if (boss && boss.active && S.state.phase === S_PLAY) fireBossMissile(boss);
     });
   }
 
@@ -987,7 +976,7 @@ function dmgShip(ship, amt) {
     }).setVisible(false);
     if (ship.body) { ship.body.enable = false; ship.body.setVelocity(0, 0); }
     ship.setPosition(-1000, -1000);
-    if (S.state.mode === 'solo') spectacularExplosion(x, y, ship.color);
+    if (S.state.mode === S_SOLO) spectacularExplosion(x, y, ship.color);
     else explode(x, y, ship.color, 25);
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
     S.time.delayedCall(1200, () => endMatch());
@@ -1047,13 +1036,13 @@ function updateHud(ship, time) {
   }
 
 
-  if (S.state.phase === 'playing') {
+  if (S.state.phase === S_PLAY) {
     const elapsed = S.time.now - S.state.stT;
     const mins = Math.floor(elapsed / 60000), secs = Math.floor((elapsed % 60000) / 1000);
     const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     const remaining = Math.max(0, Math.ceil((S.state.nRT - time) / 1000));
 
-    if (S.state.mode === 'solo') {
+    if (S.state.mode === S_SOLO) {
       S.hud.timer.setText(`TIME ${timeStr} // ROUND ${S.state.round} (NEXT ${remaining}s)`);
     } else {
       S.hud.timer.setText(`ROUND ${S.state.round} // NEXT IN ${remaining}s`);
@@ -1068,7 +1057,7 @@ function showPoints(x, y, amt, color) {
 }
 
 function addPoints(id, amt, x, y) {
-  if (S.state.phase !== 'playing' || S.state.scores[id] === undefined) return;
+  if (S.state.phase !== S_PLAY || S.state.scores[id] === undefined) return;
   S.state.scores[id] += amt;
   if (x !== undefined && y !== undefined && C[id]) showPoints(x, y, amt, C[id]);
 }
@@ -1087,14 +1076,14 @@ function updateRounds(time, delta) {
     S.state.sP = false;
     const bonus = S.state.round * 500;
     addPoints('p1', bonus);
-    if (S.state.mode === 'duel') addPoints('p2', bonus);
+    if (S.state.mode === S_DUEL) addPoints('p2', bonus);
 
     // Visual Announcement
     const msg = TX(S, W / 2, H / 2, `ROUND ${S.state.round}\nMETEOR INTENSITY UP!`, 'b42', cA, 0.5).setDepth(300).setScale(0).setAlign('center');
     S.tweens.add({ targets: msg, scale: 1, duration: 500, ease: 'Back.out' });
     S.time.delayedCall(2000, () => S.tweens.add({ targets: msg, alpha: 0, scale: 1.5, duration: 500, onComplete: () => msg.destroy() }));
 
-    if (S.state.mode === 'solo' && S.state.round % 3 === 0) {
+    if (S.state.mode === S_SOLO && S.state.round % 3 === 0) {
       S.tweens.add({ targets: S.state, bT: 1, duration: 2500, ease: 'Power2' });
       S.time.delayedCall(3000, () => spawnBoss());
     }
@@ -1232,8 +1221,8 @@ function createModeSelectScreen() {
   c.add(TX(S, W / 2, 120, 'SELECT OPERATION', 'b42', cA, 0.5));
 
   const modes = [
-    { id: 'solo', name: '1 PLAYER: RESISTANCE', desc: 'Survive the meteor storm as long as possible.' },
-    { id: 'duel', name: '2 PLAYERS: DUEL (1V1)', desc: 'Standard dogfight. Last pilot standing wins.' }
+    { id: S_SOLO, name: '1 PLAYER: RESISTANCE', desc: 'Survive the meteor storm as long as possible.' },
+    { id: S_DUEL, name: '2 PLAYERS: DUEL (1V1)', desc: 'Standard dogfight. Last pilot standing wins.' }
   ];
 
   const btns = modes.map((m, i) => {
@@ -1428,14 +1417,14 @@ function handleModeSelect(time) {
   const dy = (held('P1_D') || held('P2_D') ? 1 : 0) - (held('P1_U') || held('P2_U') ? 1 : 0);
   if (dy !== 0) { S.state.menu.cursor = Phaser.Math.Wrap(S.state.menu.cursor + dy, 0, 2); S.state.menu.cd = time + 200; updateModeMenu(); playSfx('click'); }
   if (st) {
-    const mode = S.state.menu.cursor === 0 ? 'solo' : 'duel';
+    const mode = S.state.menu.cursor === 0 ? S_SOLO : S_DUEL;
     S.state.mode = mode;
     startMatch();
   }
 }
 
 function startMatch() {
-  S.state.phase = 'playing';
+  S.state.phase = S_PLAY;
   S.scrStart.c.setVisible(false);
   S.scrMode.c.setVisible(false);
   S.scrGameOver.c.setVisible(false);
@@ -1446,7 +1435,7 @@ function resetGame() {
   S.state.stT = S.time.now;
   S.ships.children.iterate(ship => {
     const isP2 = !ship.isP1;
-    const active = S.state.mode === 'duel' || !isP2;
+    const active = S.state.mode === S_DUEL || !isP2;
 
     Object.assign(
       ship,
@@ -1461,7 +1450,7 @@ function resetGame() {
   if (S.hud.clearMsg) { S.hud.clearMsg.destroy(); S.hud.clearMsg = null; }
   if (S.hud.showerAlert) { S.hud.showerAlert.clear(); }
 
-  const isDuel = S.state.mode === 'duel';
+  const isDuel = S.state.mode === S_DUEL;
   Object.values(S.hud.p1).forEach(h => h && h.setVisible && h.setVisible(true));
   Object.values(S.hud.p2).forEach(h => h && h.setVisible && h.setVisible(isDuel));
   S.hud.timer.setVisible(true);
@@ -1481,23 +1470,23 @@ function resetGame() {
 }
 
 function endMatch() {
-  if (S.state.phase === 'gameover') return;
-  S.state.phase = 'gameover'; S.physics.pause(); S.state.gameoverDone = false;
+  if (S.state.phase === S_GO) return;
+  S.state.phase = S_GO; S.physics.pause(); S.state.gameoverDone = false;
   clearC(S.scrGameOver.c);
   const duration = S.time.now - S.state.stT;
   const mins = Math.floor(duration / 60000), secs = Math.floor((duration % 60000) / 1000);
   const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
   let winId = 'p1', score = S.state.scores.p1;
-  if (S.state.mode === 'duel') {
+  if (S.state.mode === S_DUEL) {
     winId = S.state.scores.p1 > S.state.scores.p2 ? 'p1' : 'p2';
     score = S.state.scores[winId];
   }
 
-  const hsList = S.state.mode === 'solo' ? S.state.hSS : S.state.hSD;
+  const hsList = S.state.mode === S_SOLO ? S.state.hSS : S.state.hSD;
   const isHS = hsList.length < 10 || score > (hsList.length ? hsList[hsList.length - 1].score : -1);
 
-  if (S.state.mode === 'solo') {
+  if (S.state.mode === S_SOLO) {
     playLossMelody();
     S.scrGameOver.c.setVisible(true);
     S.scrGameOver.t.setText('SIGNAL TERMINATED').setTint(0xff4422).setScale(0);
@@ -1543,12 +1532,12 @@ function endMatch() {
 }
 
 function showNameEntry(winner, score, timeStr) {
-  S.state.phase = 'nameEntry';
+  S.state.phase = S_NE;
   S.state.nE = { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner, score, timeStr, cd: 0, confirming: false };
   S.scrName.c.setVisible(true);
   S.scrName.confirmMsg.setVisible(false);
   S.scrName.help.setVisible(true);
-  S.scrName.t1.setText(S.state.mode === 'solo' ? 'NEW RECORD DETECTED' : `${winner.toUpperCase()} ACED IT!`);
+  S.scrName.t1.setText(S.state.mode === S_SOLO ? 'NEW RECORD DETECTED' : `${winner.toUpperCase()} ACED IT!`);
   updateNameEntryUi();
 }
 
@@ -1586,7 +1575,7 @@ function handleNameEntry(time) {
     }
     if (ok) {
       saveHighScore(e.name.join(''), e.score, e.timeStr, S.state.mode).then(hs => {
-        if (S.state.mode === 'solo') S.state.hSS = hs;
+        if (S.state.mode === S_SOLO) S.state.hSS = hs;
         else S.state.hSD = hs;
         S.scrName.c.setVisible(false);
         showStartScreen();
@@ -1618,7 +1607,7 @@ function handleNameEntry(time) {
 function clearC(c, k = 2) { const l = c.list; for (let i = l.length - 1; i >= k; i--) l[i].destroy(); }
 function returnToStart() { clearC(S.scrGameOver.c); showStartScreen(); }
 function pauseMatch() { S.state.phase = 'paused'; S.physics.pause(); clearC(S.scrGeneric.c); S.scrGeneric.c.setVisible(true); S.scrGeneric.t.setText('PAUSED'); S.controls.pressed = {}; }
-function resumeMatch() { S.state.phase = 'playing'; S.physics.resume(); S.scrGeneric.c.setVisible(false); }
+function resumeMatch() { S.state.phase = S_PLAY; S.physics.resume(); S.scrGeneric.c.setVisible(false); }
 
 function showHelp() {
   S.state.phase = 'help';
@@ -1757,11 +1746,11 @@ async function loadHighScores() {
 
 async function saveHighScore(name, score, timeStr, mode) {
   const s = arcadeStorage();
-  const key = mode === 'solo' ? STORAGE_KEY_SOLO : STORAGE_KEY_DUEL;
+  const key = mode === S_SOLO ? STORAGE_KEY_SOLO : STORAGE_KEY_DUEL;
   const res = await s.get(key);
   let hs = res.found ? res.value : [];
   const entry = { name, score, date: Date.now() };
-  if (mode === 'solo') entry.time = timeStr;
+  if (mode === S_SOLO) entry.time = timeStr;
   hs.push(entry);
   hs.sort((a, b) => b.score - a.score);
   hs = hs.slice(0, 10);
@@ -1789,7 +1778,7 @@ function playLossMelody() {
 }
 
 function updateMusic(time) {
-  if (S.state.phase !== 'playing') {
+  if (S.state.phase !== S_PLAY) {
     if (S.musicTimer) { S.musicTimer.remove(); S.musicTimer = null; }
     if (S.drone) { S.drone.stop(); S.drone = null; }
     return;
