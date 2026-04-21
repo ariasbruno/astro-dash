@@ -513,7 +513,17 @@ function takePowerup(ship, pow) {
     ship.setData({ spType: type, spCount: type === POWS.MISSILE ? 3 : (type === POWS.FLARE ? 5 : 1) });
   }
   addPoints(this, ship.id, 25, pow.x, pow.y);
-  safeDestroy(pow); playSfx(this, 'orb');
+  pickupJuice(this, ship, pow.getData('color') || C.white);
+  if (pow.body) pow.body.enable = false;
+  this.tweens.add({ targets: pow, scale: 0, duration: 150, onComplete: () => safeDestroy(pow) });
+  playSfx(this, 'orb');
+}
+
+function pickupJuice(s, ship, col) {
+  ship.setScale(1.2);
+  s.tweens.add({ targets: ship, scale: 1, duration: 200 });
+  const f = s.add.circle(ship.x, ship.y, 25, col, 0.4);
+  s.tweens.add({ targets: f, alpha: 0, scale: 1.2, duration: 250, onComplete: () => f.destroy() });
 }
 
 
@@ -781,7 +791,10 @@ function takeOrb(ship, orb) {
   if (!orb.active || ship.getData('dead')) return;
   ship.setData('hp', Math.min(100, ship.getData('hp') + 25));
   addPoints(this, ship.id, 25, orb.x, orb.y);
-  safeDestroy(orb); playSfx(this, 'orb');
+  pickupJuice(this, ship, C.orb);
+  if (orb.body) orb.body.enable = false;
+  this.tweens.add({ targets: orb, scale: 0, duration: 150, onComplete: () => safeDestroy(orb) });
+  playSfx(this, 'orb');
 }
 
 function hitFlareMissile(mis, fl) {
