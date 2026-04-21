@@ -212,22 +212,25 @@ function createShip(s, x, y, id, color) {
 
   c.add([glow, reactor, wingLights, g]); s.physics.add.existing(c);
   c.body.setDrag(2000).setMaxVelocity(1200).setCircle(10, -10, -10).setCollideWorldBounds(true);
-  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: null, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights, glow });
+  Object.assign(
+    c,
+    { id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: null, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights, glow }
+  );
 
   s.ships.add(c); return c;
 }
 
 function updateShips(s, time, delta) {
   [s.p1, s.p2].forEach((ship, i) => {
-    if (ship.getData('dead')) return;
+    if (ship.dead) return;
     if (s.state.mode === 'solo' && !ship.isP1) return;
     const p = i === 0 ? 'P1' : 'P2', opp = i === 0 ? s.p2 : s.p1;
-    const b = ship.body, curE = ship.getData('energy');
+    const b = ship.body, curE = ship.energy;
 
     const isSolo = s.state.mode === 'solo' && ship === s.p1;
     let vx = (held(s, p + '_R') || (isSolo && held(s, 'P2_R')) ? 1 : 0) - (held(s, p + '_L') || (isSolo && held(s, 'P2_L')) ? 1 : 0);
     let vy = (held(s, p + '_D') || (isSolo && held(s, 'P2_D')) ? 1 : 0) - (held(s, p + '_U') || (isSolo && held(s, 'P2_U')) ? 1 : 0);
-    const speed = b.speed, isO = time < ship.getData('overdriveUntil');
+    const speed = b.speed, isO = time < ship.overdriveUntil;
     if (vx !== 0 || vy !== 0) {
       const a = Math.atan2(vy, vx);
       ship.rotation = a;
@@ -238,19 +241,19 @@ function updateShips(s, time, delta) {
     // Color Fire Logic (Buttons 1, 2, 3)
     const fs = isSolo ? [p + '_1', p + '_2', p + '_3', 'P2_1', 'P2_2', 'P2_3'] : [p + '_1', p + '_2', p + '_3'];
     const isOverdrive = isO;
-    const isFiring = fs.some(k => held(s, k)), isOverheated = ship.getData('overheated');
-    const mustRelease = ship.getData('mustRelease');
+    const isFiring = fs.some(k => held(s, k)), isOverheated = ship.overheated;
+    const mustRelease = ship.mustRelease;
 
-    if (!isFiring) ship.setData('mustRelease', false);
+    if (!isFiring) ship.mustRelease = false;
 
     let actuallyFired = false;
     if (isFiring && !isOverheated && !mustRelease) {
       fs.forEach((fKey, i) => {
         if (held(s, fKey)) {
-          ship.setData('shipColor', SHIP_C[i % 3]);
-          if (time > ship.getData('lastFire') && (isOverdrive || curE >= 12)) {
-            fireBullet(s, ship); ship.setData('lastFire', time + 140);
-            if (!isOverdrive) ship.setData('energy', Math.max(0, curE - 12));
+          ship.shipColor = SHIP_C[i % 3];
+          if (time > ship.lastFire && (isOverdrive || curE >= 12)) {
+            fireBullet(s, ship); ship.lastFire = time + 140;
+            if (!isOverdrive) ship.energy = Math.max(0, curE - 12);
             actuallyFired = true;
           }
         }
@@ -258,28 +261,28 @@ function updateShips(s, time, delta) {
     }
 
     if (!actuallyFired) {
-      ship.setData('energy', Math.min(100, curE + delta * 0.045));
+      ship.energy = Math.min(100, curE + delta * 0.045);
     }
 
     if (!isOverdrive && curE < 12 && isFiring && !isOverheated) {
-      ship.setData({ overheated: true, mustRelease: true }); playSfx(s, 'hit');
+      Object.assign(ship, { overheated: true, mustRelease: true }); playSfx(s, 'hit');
     }
-    if (curE >= 50) ship.setData('overheated', false);
+    if (curE >= 50) ship.overheated = false;
 
     // Boost Logic (Button 4)
     const boostTriggered = consume(s, isSolo ? [p + '_4', 'P2_4'] : [p + '_4']);
-    if (boostTriggered && time > ship.getData('lastDash')) {
+    if (boostTriggered && time > ship.lastDash) {
       s.physics.velocityFromRotation(ship.rotation, 1200, b.velocity);
-      ship.setData('lastDash', time + 3000);
-      ship.setData('boostUntil', time + 200);
+      ship.lastDash = time + 3000;
+      ship.boostUntil = time + 200;
       playSfx(s, 'boost'); explode(s, ship.x, ship.y, isO ? C.overdrive : C.dodge, 4);
     }
 
     // Special / Shield Logic (Button 6)
     if (consume(s, isSolo ? [p + '_6', 'P2_6'] : [p + '_6'])) {
-      const type = ship.getData('spType');
+      const type = ship.spType;
       if (type === POWS.SHIELD) {
-        ship.setData({ hasShield: true, spType: null, spCount: 0 });
+        Object.assign(ship, { hasShield: true, spType: null, spCount: 0 });
         playSfx(s, 'act');
       } else {
         fireSpecial(s, ship, opp);
@@ -287,14 +290,14 @@ function updateShips(s, time, delta) {
     }
     updateHud(s, ship, time);
     updateShipVisuals(ship);
-    if (ship.getData('hasShield')) drawShield(s, ship);
+    if (ship.hasShield) drawShield(s, ship);
   });
 }
 
 function updateShipVisuals(ship) {
-  const hp = ship.getData('hp'), en = ship.getData('energy'), oh = ship.getData('overheated');
-  const reactor = ship.getData('reactor'), wingLights = ship.getData('wingLights');
-  const isDead = ship.getData('dead');
+  const hp = ship.hp, en = ship.energy, oh = ship.overheated;
+  const reactor = ship.reactor, wingLights = ship.wingLights;
+  const isDead = ship.dead;
   if (isDead) return;
 
   // 1. Update Reactor (Energy/Ammo)
@@ -320,9 +323,9 @@ function updateShipVisuals(ship) {
   }
 
   // 1.1 Update Glow (Aura)
-  const glow = ship.getData('glow');
-  const isO = ship.scene.time.now < ship.getData('overdriveUntil');
-  const gCol = isO ? C.overdrive : ship.getData('color');
+  const glow = ship.glow;
+  const isO = ship.scene.time.now < ship.overdriveUntil;
+  const gCol = isO ? C.overdrive : ship.color;
   const gAlpha = isO ? 0.15 + Math.sin(ship.scene.time.now / 150) * 0.05 : 0.08;
   glow.clear().fillStyle(gCol, gAlpha).fillCircle(0, 0, 16);
 
@@ -336,7 +339,7 @@ function updateShipVisuals(ship) {
     const yMult = side === 'top' ? 1 : -1;
     for (let i = 0; i < 3; i++) {
       const active = i < hpSegments;
-      let col = ship.getData('color');
+      let col = ship.color;
       let alpha = 0.8;
 
       if (!active) {
@@ -364,8 +367,8 @@ function updateShipVisuals(ship) {
 
 
 function fireBullet(s, ship) {
-  const isO = s.time.now < ship.getData('overdriveUntil');
-  const color = isO ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
+  const isO = s.time.now < ship.overdriveUntil;
+  const color = isO ? C.overdrive : (ship.shipColor || ship.color);
   const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22;
   const b = s.add.container(x, y); b.rotation = ship.rotation;
   const laser = s.add.rectangle(0, 0, 10, 2, color);
@@ -373,19 +376,19 @@ function fireBullet(s, ship) {
   const glow = s.add.rectangle(0, 0, 14, 4, color, 0.4);
   b.add([glow, laser, core]);
   s.physics.add.existing(b); b.body.setCircle(3, -3, -3).setVelocity(Math.cos(ship.rotation) * 1200, Math.sin(ship.rotation) * 1200);
-  b.setData({ owner: ship.id, color });
+  Object.assign(b, { owner: ship.id, color });
   s.bullets.add(b); playSfx(s, 'pew');
 }
 
 function fireSpecial(s, ship, enemy) {
-  const type = ship.getData('spType'), count = ship.getData('spCount');
+  const type = ship.spType, count = ship.spCount;
   if (!type || count <= 0) return;
   if (type === POWS.MISSILE) {
     playSfx(s, 'launch');
     const mis = s.add.container(ship.x, ship.y); mis.rotation = ship.rotation;
     mis.add([s.add.graphics().lineStyle(2, C.missile).strokeTriangle(10, 0, -5, 5, -5, -5), s.add.graphics().fillStyle(C.missile, 0.3).fillCircle(-2, 0, 8)]);
     s.physics.add.existing(mis); mis.body.setCircle(8, -8, -8).setVelocity(Math.cos(ship.rotation) * 400, Math.sin(ship.rotation) * 400);
-    mis.setData({ owner: ship.id, target: enemy, expiry: s.time.now + 5000 }); s.missiles.add(mis);
+    Object.assign(mis, { owner: ship.id, target: enemy, expiry: s.time.now + 5000 }); s.missiles.add(mis);
     playSfx(s, 'act');
   } else if (type === POWS.FLARE) {
     for (let i = 0; i < 10; i++) {
@@ -399,32 +402,32 @@ function fireSpecial(s, ship, enemy) {
     }
     playSfx(s, 'act');
   }
-  const next = count - 1; ship.setData({ spCount: next, spType: next <= 0 ? null : type });
+  const next = count - 1; Object.assign(ship, { spCount: next, spType: next <= 0 ? null : type });
 }
 
 function updateMissiles(s, time) {
   s.missiles.children.each(m => {
     if (!m || !m.active || !m.body) return;
-    if (time > m.getData('expiry')) {
-      const x = m.x, y = m.y, owner = m.getData('owner');
+    if (time > m.expiry) {
+      const x = m.x, y = m.y, owner = m.owner;
       safeDestroy(m); missileExplode(s, x, y, owner);
       return;
     }
 
-    const ownerId = m.getData('owner');
+    const ownerId = m.owner;
     let target = null;
     let minDist = Infinity;
 
     // Scan for nearest active threat (Opponent ships or Interceptors)
     s.ships.children.each(ship => {
-      if (ship.active && !ship.getData('dead') && ship.id !== ownerId) {
+      if (ship.active && !ship.dead && ship.id !== ownerId) {
         const d = Phaser.Math.Distance.Between(m.x, m.y, ship.x, ship.y);
         if (d < minDist) { minDist = d; target = ship; }
       }
     });
 
     s.enemies.children.each(enemy => {
-      if (enemy.active && !enemy.getData('dead') && enemy.id !== ownerId) {
+      if (enemy.active && !enemy.dead && enemy.id !== ownerId) {
         const d = Phaser.Math.Distance.Between(m.x, m.y, enemy.x, enemy.y);
         if (d < minDist) { minDist = d; target = enemy; }
       }
@@ -437,14 +440,14 @@ function updateMissiles(s, time) {
 
     if (!target) return;
     if (target === s.p1 && minDist < 500) {
-      const now = s.time.now, last = target.getData('lA') || 0, iv = Phaser.Math.Clamp(minDist, 70, 500);
-      if (now > last + iv) { playSfx(s, 'lock'); target.setData('lA', now); }
+      const now = s.time.now, last = target.lA || 0, iv = Phaser.Math.Clamp(minDist, 70, 500);
+      if (now > last + iv) { playSfx(s, 'lock'); target.lA = now; }
     }
 
     const angle = Phaser.Math.Angle.Between(m.x, m.y, target.x, target.y);
-    const turnRate = m.getData('turnRate') || 0.1;
+    const turnRate = m.turnRate || 0.1;
     m.rotation = Phaser.Math.Angle.RotateTo(m.rotation, angle, turnRate);
-    const speed = m.getData('speed') || 450;
+    const speed = m.speed || 450;
     const vx = Math.cos(m.rotation) * speed, vy = Math.sin(m.rotation) * speed;
     m.body.setVelocity(vx, vy);
 
@@ -497,7 +500,7 @@ function spawnPowerup(s) {
   s.physics.add.existing(c);
   c.body.setCircle(15, -15, -15);
   c.body.setAngularVelocity(100);
-  c.setData('type', type); s.powerups.add(c);
+  c.type = type; s.powerups.add(c);
   s.time.delayedCall(10000, () => { if (c.active) safeDestroy(c); });
 }
 
@@ -505,15 +508,18 @@ function spawnPowerup(s) {
 function updatePowerups(s, time) { if (time > s.state.powTimer) { spawnPowerup(s); s.state.powTimer = time + 15000 + rnd() * 10000; } }
 
 function takePowerup(ship, pow) {
-  if (!pow.active || ship.getData('dead')) return;
-  const type = pow.getData('type');
+  if (!pow.active || ship.dead) return;
+  const type = pow.type;
   if (type === POWS.RAPID) {
-    ship.setData('overdriveUntil', this.time.now + 8000);
+    ship.overdriveUntil = this.time.now + 8000;
   } else {
-    ship.setData({ spType: type, spCount: type === POWS.MISSILE ? 3 : (type === POWS.FLARE ? 5 : 1) });
+    Object.assign(
+      ship,
+      { spType: type, spCount: type === POWS.MISSILE ? 3 : (type === POWS.FLARE ? 5 : 1) }
+    );
   }
   addPoints(this, ship.id, 25, pow.x, pow.y);
-  pickupJuice(this, ship, pow.getData('color') || C.white);
+  pickupJuice(this, ship, pow.color || C.white);
   if (pow.body) pow.body.enable = false;
   this.tweens.add({ targets: pow, scale: 0, duration: 150, onComplete: () => safeDestroy(pow) });
   playSfx(this, 'orb');
@@ -548,7 +554,7 @@ function spawnMeteor(s, x, y, size = 40, color = C.debris) {
   const hitboxScale = size >= 20 ? 0.85 : 0.7;
   s.physics.add.existing(m); const speedMult = 1 + Math.floor((s.state.round - 1) / 5) * 0.25;
   m.body.setCircle(size * hitboxScale, -size * hitboxScale, -size * hitboxScale).setVelocity((rnd() - 0.5) * 120 * speedMult, (rnd() - 0.5) * 120 * speedMult).setAngularVelocity((rnd() - 0.5) * 100);
-  m.setData({ size, color }); s.meteors.add(m);
+  Object.assign(m, { size, color }); s.meteors.add(m);
   return m;
 }
 
@@ -560,7 +566,7 @@ function updateMeteors(s, time) {
       s.tweens.add({ targets: s.hud.clearMsg, alpha: 0.3, duration: 400, yoyo: true, repeat: -1 });
     }
     let hasBig = false;
-    s.meteors.getChildren().forEach(m => { if (m && m.active && m.getData('size') > 25) hasBig = true; });
+    s.meteors.getChildren().forEach(m => { if (m && m.active && m.size > 25) hasBig = true; });
     if (!hasBig) {
       if (s.hud.clearMsg) { s.hud.clearMsg.destroy(); s.hud.clearMsg = null; }
       s.state.showerPending = false; s.state.isShowerActive = true; s.state.showerCount++;
@@ -590,7 +596,7 @@ function updateMeteors(s, time) {
         x = rnd() * W; y = H + 60; vx = (rnd() - 0.5) * 80 * speedMult; vy = -(400 + rnd() * 150) * speedMult;
       }
       const m = spawnMeteor(s, x, y, 15 + rnd() * 15);
-      if (m) m.setData('isShower', true);
+      if (m) m.isShower = true;
       if (m && m.body) m.body.setVelocity(vx, vy);
       s.state.spawnTimer = time + 160;
     } else {
@@ -611,7 +617,7 @@ function updateMeteors(s, time) {
 
   s.meteors.getChildren().forEach(m => {
     if (m && m.active && (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100)) {
-      if (!s.state.showerPending && !s.state.isShowerActive && !m.getData('isShower')) {
+      if (!s.state.showerPending && !s.state.isShowerActive && !m.isShower) {
         s.physics.world.wrap(m, 60);
       } else {
         m.destroy();
@@ -683,14 +689,14 @@ function spawnBoss(s) {
   s.physics.add.existing(boss);
   boss.body.setCircle(65, 22, -15);
   const bossHp = 150 + Math.floor((s.state.round - 3) / 3) * 50;
-  boss.setData({ id: 'boss', hp: bossHp, dead: false });
+  Object.assign(boss, { id: 'boss', hp: bossHp, dead: false });
   s.enemies.add(boss);
 
   // Life: Engine Trail, Side Thrusters & Critical Damage
   s.time.addEvent({
     delay: 50, loop: true, callback: () => {
-      if (!boss.active || boss.getData('dead')) return;
-      const vy = boss.body.velocity.y, hp = boss.getData('hp');
+      if (!boss.active || boss.dead) return;
+      const vy = boss.body.velocity.y, hp = boss.hp;
 
       // Main Trail
       const t = s.add.circle(boss.x + 20, boss.y + 50 + (rnd() - 0.5) * 20, 4 + rnd() * 8, nRed, 0.4);
@@ -713,7 +719,7 @@ function spawnBoss(s) {
   // Life: Dynamic tilt based on Y velocity
   s.time.addEvent({
     delay: 16, loop: true, callback: () => {
-      if (!boss.active || boss.getData('dead') || boss.getData('tilting')) return;
+      if (!boss.active || boss.dead || boss.tilting) return;
       const vy = boss.body.velocity.y;
       boss.rotation = Phaser.Math.Angle.RotateTo(boss.rotation, vy * 0.001, 0.02);
     }
@@ -729,17 +735,17 @@ function spawnBoss(s) {
 
   s.time.addEvent({
     delay: 2500, loop: true, callback: () => {
-      if (!boss.active || boss.getData('dead') || s.state.phase !== 'playing') return;
+      if (!boss.active || boss.dead || s.state.phase !== 'playing') return;
       const dist = Phaser.Math.Distance.Between(boss.x + 80, boss.y + 50, s.p1.x, s.p1.y);
       if (dist < 450) {
         for (let i = 0; i < 3; i++) {
           s.time.delayedCall(i * 120, () => {
-            if (!boss.active || boss.getData('dead')) return;
+            if (!boss.active || boss.dead) return;
             const b = s.add.circle(boss.x + 160, boss.y + 50, 4, nRed);
             s.physics.add.existing(b);
             const angle = Phaser.Math.Angle.Between(boss.x + 160, boss.y + 50, s.p1.x, s.p1.y);
             s.physics.velocityFromRotation(angle, 550, b.body.velocity);
-            b.setData({ owner: 'boss', color: nRed });
+            Object.assign(b, { owner: 'boss', color: nRed });
             s.bullets.add(b); playSfx(s, 'pew');
           });
         }
@@ -754,7 +760,7 @@ function spawnBoss(s) {
     }
   } });
   const ty = s.tweens.add({ targets: boss, y: startY + 120, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-  boss.setData('tweens', [tx, ty]);
+  boss.tweens = [tx, ty];
 
   const missileCount = s.state.round / 3;
   const duration = 5000;
@@ -781,15 +787,18 @@ function fireBossMissile(s, boss) {
   s.physics.add.existing(mis);
   if (mis.body) {
     mis.body.setCircle(8, -8, -8).setVelocity(350, 0);
-    mis.setData({ owner: 'boss', target: s.p1, expiry: s.time.now + 8000, speed: 350, turnRate: 0.06 });
+    Object.assign(
+      mis,
+      { owner: 'boss', target: s.p1, expiry: s.time.now + 8000, speed: 350, turnRate: 0.06 }
+    );
     s.missiles.add(mis);
     playSfx(s, 'dash');
   }
 }
 
 function takeOrb(ship, orb) {
-  if (!orb.active || ship.getData('dead')) return;
-  ship.setData('hp', Math.min(100, ship.getData('hp') + 25));
+  if (!orb.active || ship.dead) return;
+  ship.hp = Math.min(100, ship.hp + 25);
   addPoints(this, ship.id, 25, orb.x, orb.y);
   pickupJuice(this, ship, C.orb);
   if (orb.body) orb.body.enable = false;
@@ -798,7 +807,7 @@ function takeOrb(ship, orb) {
 }
 
 function hitFlareMissile(mis, fl) {
-  const x = mis.x, y = mis.y, owner = mis.getData('owner');
+  const x = mis.x, y = mis.y, owner = mis.owner;
   safeDestroy(mis); safeDestroy(fl);
   missileExplode(this, x, y, owner);
 }
@@ -810,44 +819,44 @@ function safeDestroy(obj) {
 }
 
 function hitShip(bullet, ship) {
-  if (!bullet.active || bullet.getData('owner') === ship.id) return;
-  addPoints(this, bullet.getData('owner'), 100, bullet.x, bullet.y);
-  safeDestroy(bullet); dmgShip(this, ship, 10); explode(this, bullet.x, bullet.y, ship.getData('color'), 5);
+  if (!bullet.active || bullet.owner === ship.id) return;
+  addPoints(this, bullet.owner, 100, bullet.x, bullet.y);
+  safeDestroy(bullet); dmgShip(this, ship, 10); explode(this, bullet.x, bullet.y, ship.color, 5);
 }
 function hitShipMissile(missile, ship) {
-  if (!missile.active || missile.getData('owner') === ship.id) return;
-  const x = missile.x, y = missile.y, owner = missile.getData('owner');
+  if (!missile.active || missile.owner === ship.id) return;
+  const x = missile.x, y = missile.y, owner = missile.owner;
   if (owner === 'p1' || owner === 'p2') addPoints(this, owner, 250, x, y);
   dmgShip(this, ship, 30); safeDestroy(missile);
   missileExplode(this, x, y, owner, ship);
 }
 
 function hitEnemy(bullet, enemy) {
-  if (!bullet.active || bullet.getData('owner') === 'boss') return;
-  const owner = bullet.getData('owner');
+  if (!bullet.active || bullet.owner === 'boss') return;
+  const owner = bullet.owner;
   safeDestroy(bullet);
   dmgEnemy(this, enemy, 10, owner);
   explode(this, bullet.x, bullet.y, 0xff3344, 5);
 }
 
 function hitEnemyMissile(missile, enemy) {
-  if (!missile.active || missile.getData('owner') === 'boss') return;
-  const x = missile.x, y = missile.y, owner = missile.getData('owner');
+  if (!missile.active || missile.owner === 'boss') return;
+  const x = missile.x, y = missile.y, owner = missile.owner;
   safeDestroy(missile); dmgEnemy(this, enemy, 30, owner);
   missileExplode(this, x, y, owner, enemy);
 }
 
 function hitEnemyMeteor(enemy, meteor) {
-  if (!meteor.active || enemy.getData('dead')) return;
-  explode(this, meteor.x, meteor.y, meteor.getData('color') || C.debris, 5);
+  if (!meteor.active || enemy.dead) return;
+  explode(this, meteor.x, meteor.y, meteor.color || C.debris, 5);
   safeDestroy(meteor);
   playSfx(this, 'hit');
 }
 
 function dmgEnemy(s, enemy, amt, owner) {
-  if (enemy.getData('dead')) return;
-  const hp = enemy.getData('hp') - amt;
-  enemy.setData('hp', hp);
+  if (enemy.dead) return;
+  const hp = enemy.hp - amt;
+  enemy.hp = hp;
 
   // Flash & Shake effect
   enemy.setAlpha(0.5);
@@ -857,14 +866,14 @@ function dmgEnemy(s, enemy, amt, owner) {
   // Aggressive Tilt Dodge on heavy hit
   if (amt >= 30) {
     const side = rnd() > 0.5 ? 1 : -1;
-    enemy.setData('tilting', true);
+    enemy.tilting = true;
     s.tweens.add({
       targets: enemy,
       angle: 35 * side,
       duration: 150,
       yoyo: true,
       ease: 'Quad.easeOut',
-      onComplete: () => { if (enemy.active) enemy.setData('tilting', false); }
+      onComplete: () => { if (enemy.active) enemy.tilting = false; }
     });
   }
   s.time.delayedCall(50, () => {
@@ -876,9 +885,9 @@ function dmgEnemy(s, enemy, amt, owner) {
   playSfx(s, 'hit');
 
   if (hp <= 0) {
-    enemy.setData('dead', true);
+    enemy.dead = true;
     const { x, y } = enemy;
-    const tweens = enemy.getData('tweens');
+    const tweens = enemy.tweens;
     if (tweens) tweens.forEach(t => t.stop());
 
     addPoints(s, owner, 1000, x + 80, y + 50);
@@ -890,13 +899,13 @@ function dmgEnemy(s, enemy, amt, owner) {
 
 function hitMeteor(bullet, meteor) {
   if (!meteor.active || (bullet && !bullet.active)) return;
-  if (bullet && bullet.getData('color') === meteor.getData('color')) return;
+  if (bullet && bullet.color === meteor.color) return;
   const s = this, isM = bullet && s.missiles.contains(bullet), mX = meteor.x, mY = meteor.y;
   let owner = null;
   if (bullet) {
-    const sz = meteor.getData('size');
+    const sz = meteor.size;
     const pts = sz >= 40 ? 50 : (sz >= 20 ? 150 : 300);
-    owner = bullet.getData('owner');
+    owner = bullet.owner;
     addPoints(s, owner, pts, mX, mY);
     safeDestroy(bullet);
     for (let i = 0; i < 4; i++) {
@@ -907,7 +916,7 @@ function hitMeteor(bullet, meteor) {
       s.tweens.add({ targets: p, alpha: 0, duration: 300, onComplete: () => p.destroy() });
     }
   }
-  const sz = meteor.getData('size');
+  const sz = meteor.size;
   explode(s, mX, mY, C.debris, sz / 8);
   if (sz > 18) { spawnMeteor(s, mX, mY, sz / 2); spawnMeteor(s, mX, mY, sz / 2); }
   safeDestroy(meteor);
@@ -916,20 +925,20 @@ function hitMeteor(bullet, meteor) {
 }
 
 function crashShip(ship, meteor) {
-  if (!meteor.active || ship.getData('dead') || this.time.now < ship.getData('lastHit') + 200) return;
-  const mColor = meteor.getData('color'), sz = meteor.getData('size');
-  if (ship.getData('shipColor') === mColor) {
+  if (!meteor.active || ship.dead || this.time.now < ship.lastHit + 200) return;
+  const mColor = meteor.color, sz = meteor.size;
+  if (ship.shipColor === mColor) {
     explode(this, meteor.x, meteor.y, mColor, 5); safeDestroy(meteor); playSfx(this, 'pew'); return;
   }
-  ship.setData('lastHit', this.time.now);
+  ship.lastHit = this.time.now;
   dmgShip(this, ship, Math.floor(sz / 2));
   explode(this, meteor.x, meteor.y, mColor || C.debris, 5); safeDestroy(meteor); playSfx(this, 'hit');
 }
 
 
 function crashEnemy(ship, enemy) {
-  if (ship.getData('dead') || enemy.getData('dead') || this.time.now < ship.getData('lastHit') + 200) return;
-  ship.setData('lastHit', this.time.now);
+  if (ship.dead || enemy.dead || this.time.now < ship.lastHit + 200) return;
+  ship.lastHit = this.time.now;
   dmgShip(this, ship, 25);
   dmgEnemy(this, enemy, 20, ship.id);
   explode(this, ship.x, ship.y, 0xff3344, 10);
@@ -937,14 +946,14 @@ function crashEnemy(ship, enemy) {
 }
 
 function dmgShip(s, ship, amt) {
-  if (ship.getData('dead')) return;
-  if (ship.getData('hasShield')) {
-    ship.setData('hasShield', false);
+  if (ship.dead) return;
+  if (ship.hasShield) {
+    ship.hasShield = false;
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
     playSfx(s, 'dash'); explode(s, ship.x, ship.y, C.shield, 10);
     return;
   }
-  const hp = Math.max(0, ship.getData('hp') - amt); ship.setData('hp', hp);
+  const hp = Math.max(0, ship.hp - amt); ship.hp = hp;
 
   // Hit Feedback: Sound, Stop & Shake
   playSfx(s, 'hit');
@@ -963,11 +972,13 @@ function dmgShip(s, ship, amt) {
 
   if (hp <= 0) {
     const { x, y } = ship;
-    ship.setData('dead', true).setVisible(false);
+    Object.assign(ship, {
+      dead: true
+    }).setVisible(false);
     if (ship.body) { ship.body.enable = false; ship.body.setVelocity(0, 0); }
     ship.setPosition(-1000, -1000);
-    if (s.state.mode === 'solo') spectacularExplosion(s, x, y, ship.getData('color'));
-    else explode(s, x, y, ship.getData('color'), 25);
+    if (s.state.mode === 'solo') spectacularExplosion(s, x, y, ship.color);
+    else explode(s, x, y, ship.color, 25);
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
     s.time.delayedCall(1200, () => endMatch(s));
   }
@@ -976,10 +987,10 @@ function dmgShip(s, ship, amt) {
 
 function updateHud(s, ship, time) {
   const id = ship.id, h = s.hud[id];
-  const hp = Math.ceil(ship.getData('hp')), en = Math.floor(ship.getData('energy')), score = s.state.scores[id];
-  const sh = ship.getData('hasShield'), ld = ship.getData('lastDash');
-  const type = ship.getData('spType'), count = ship.getData('spCount');
-  const isOverdrive = time < ship.getData('overdriveUntil');
+  const hp = Math.ceil(ship.hp), en = Math.floor(ship.energy), score = s.state.scores[id];
+  const sh = ship.hasShield, ld = ship.lastDash;
+  const type = ship.spType, count = ship.spCount;
+  const isOverdrive = time < ship.overdriveUntil;
 
   if (hp !== h.lastHp) {
     const hpCol = hp > 60 ? '#00ff66' : (hp > 30 ? '#ffcc00' : '#ff4422');
@@ -1115,7 +1126,7 @@ function missileExplode(s, x, y, owner, directHit) {
   });
   const targets = [...s.ships.getChildren(), ...s.enemies.getChildren(), ...s.meteors.getChildren()];
   targets.forEach(t => {
-    if (!t.active || t.getData('dead')) return;
+    if (!t.active || t.dead) return;
     const d = Phaser.Math.Distance.Between(x, y, t.x, t.y);
     if (d > 150) return;
     if (t === s.p1 || t === s.p2) {
@@ -1126,7 +1137,7 @@ function missileExplode(s, x, y, owner, directHit) {
       let dmg = (d < 60 ? 20 : 0) + (d < 100 ? 10 : 0) + (d < 150 ? 5 : 0);
       if (dmg > 0) {
         if (s.meteors.contains(t)) {
-          explode(s, t.x, t.y, t.getData('color') || C.debris, 5); safeDestroy(t);
+          explode(s, t.x, t.y, t.color || C.debris, 5); safeDestroy(t);
         } else {
           dmgEnemy(s, t, dmg, owner);
         }
@@ -1136,8 +1147,8 @@ function missileExplode(s, x, y, owner, directHit) {
 }
 
 function spawnTrail(s, ship) {
-  const isOverdrive = s.time.now < ship.getData('overdriveUntil');
-  const hp = ship.getData('hp'), color = isOverdrive ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
+  const isOverdrive = s.time.now < ship.overdriveUntil;
+  const hp = ship.hp, color = isOverdrive ? C.overdrive : (ship.shipColor || ship.color);
   const isSputtering = hp < 30 && (Math.floor(s.time.now / 100) % 2 === 0);
   if (!isSputtering) {
     const fX = ship.x - Math.cos(ship.rotation) * 10, fY = ship.y - Math.sin(ship.rotation) * 10;
@@ -1427,7 +1438,10 @@ function resetGame(s) {
     const isP2 = !ship.isP1;
     const active = s.state.mode === 'duel' || !isP2;
 
-    ship.setData({ hp: 100, energy: 100, dead: !active, lastHit: 0, spType: null, spCount: 0, shipColor: SHIP_C[0], hasShield: false })
+    Object.assign(
+      ship,
+      { hp: 100, energy: 100, dead: !active, lastHit: 0, spType: null, spCount: 0, shipColor: SHIP_C[0], hasShield: false }
+    )
       .setVisible(active).setPosition(ship.isP1 ? 150 : W - 150, H / 2).setRotation(ship.isP1 ? 0 : Math.PI);
     ship.body.setVelocity(0).enable = active;
     if (ship.shieldVisual) { ship.shieldVisual.destroy(); ship.shieldVisual = null; }
@@ -1782,9 +1796,9 @@ function updateMusic(s, time) {
     s.musicTimer = s.time.addEvent({ delay: 150, loop: true, callback: () => tickMusic(s) });
   }
   const bt = s.state.bossTension || 0;
-  const tension = bt > 0.5 || (s.enemies && s.enemies.countActive() > 0) || (s.p1.getData('hp') < 25);
+  const tension = bt > 0.5 || (s.enemies && s.enemies.countActive() > 0) || (s.p1.hp < 25);
   s.musicTimer.delay = tension ? 120 : 150;
-  const targetFreq = Math.max(40 + bt * 15, (s.p1.getData('hp') < 25) ? 55 : 40);
+  const targetFreq = Math.max(40 + bt * 15, (s.p1.hp < 25) ? 55 : 40);
   if (s.drone) s.drone.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.5);
 }
 
@@ -1792,7 +1806,7 @@ function tickMusic(s) {
   const ctx = s.game.sound.context; if (!ctx || !s.mState) return;
   const b = s.mState.beat, round = s.state.round;
   const bt = s.state.bossTension || 0;
-  const lowHp = s.p1.getData('hp') < 25;
+  const lowHp = s.p1.hp < 25;
 
   // Villain Bass (Dissonant & Low) - Fades in/out
   if (bt > 0.1 && b % 4 === 0) playNote(ctx, 45, 'sawtooth', 0.25 * bt, 0.4, true);
