@@ -21,7 +21,7 @@ const POWS = { MISSILE: 'M', FLARE: 'F', SHIELD: 'S', RAPID: 'R' };
 const C = {
   bg: 0x05070a, p1: 0x00ff66, p2: 0xfacc15, debris: 0x444444, orb: 0x00ff88, black: 0,
   white: 0xffffff, accent: 0xfacc15, stable: 0x4fb89a, cell: 0x111111, frame: 0x333333, overlay: 0x020408,
-  energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xffeeaa, shield: 0x00ccff, overdrive: 0xff00ff
+  energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xffeeaa, shield: 0x00ccff, overdrive: 0xff5d00
 };
 const rnd = (m) => Math.random() * (m || 1), rB = Phaser.Math.Between;
 const SHIP_C = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
@@ -212,8 +212,7 @@ function createShip(s, x, y, id, color) {
 
   c.add([glow, reactor, wingLights, g]); s.physics.add.existing(c);
   c.body.setDrag(2000).setMaxVelocity(1200).setCircle(10, -10, -10).setCollideWorldBounds(true);
-  c.id = id; c.isP1 = id === 'p1';
-  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: C.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
+  c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: null, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights, glow });
 
   s.ships.add(c); return c;
 }
@@ -228,17 +227,17 @@ function updateShips(s, time, delta) {
     const isSolo = s.state.mode === 'solo' && ship === s.p1;
     let vx = (held(s, p + '_R') || (isSolo && held(s, 'P2_R')) ? 1 : 0) - (held(s, p + '_L') || (isSolo && held(s, 'P2_L')) ? 1 : 0);
     let vy = (held(s, p + '_D') || (isSolo && held(s, 'P2_D')) ? 1 : 0) - (held(s, p + '_U') || (isSolo && held(s, 'P2_U')) ? 1 : 0);
-    const speed = b.speed;
+    const speed = b.speed, isO = time < ship.getData('overdriveUntil');
     if (vx !== 0 || vy !== 0) {
       const a = Math.atan2(vy, vx);
       ship.rotation = a;
       if (speed < 400) s.physics.velocityFromRotation(a, 320, b.velocity);
-      if (time % 60 < 20) spawnTrail(s, ship);
+      if (isO || time % 60 < 20) spawnTrail(s, ship);
     }
 
     // Color Fire Logic (Buttons 1, 2, 3)
     const fs = isSolo ? [p + '_1', p + '_2', p + '_3', 'P2_1', 'P2_2', 'P2_3'] : [p + '_1', p + '_2', p + '_3'];
-    const isOverdrive = time < ship.getData('overdriveUntil');
+    const isOverdrive = isO;
     const isFiring = fs.some(k => held(s, k)), isOverheated = ship.getData('overheated');
     const mustRelease = ship.getData('mustRelease');
 
@@ -273,7 +272,7 @@ function updateShips(s, time, delta) {
       s.physics.velocityFromRotation(ship.rotation, 1200, b.velocity);
       ship.setData('lastDash', time + 3000);
       ship.setData('boostUntil', time + 200);
-      playSfx(s, 'boost'); explode(s, ship.x, ship.y, C.dodge, 4);
+      playSfx(s, 'boost'); explode(s, ship.x, ship.y, isO ? C.overdrive : C.dodge, 4);
     }
 
     // Special / Shield Logic (Button 6)
@@ -320,6 +319,13 @@ function updateShipVisuals(ship) {
     reactor.lineStyle(1, C.white, 0.5).strokeCircle(-10, 0, rSize + 2);
   }
 
+  // 1.1 Update Glow (Aura)
+  const glow = ship.getData('glow');
+  const isO = ship.scene.time.now < ship.getData('overdriveUntil');
+  const gCol = isO ? C.overdrive : ship.getData('color');
+  const gAlpha = isO ? 0.15 + Math.sin(ship.scene.time.now / 150) * 0.05 : 0.08;
+  glow.clear().fillStyle(gCol, gAlpha).fillCircle(0, 0, 16);
+
   // 2. Update Wing Lights (Health)
   wingLights.clear();
   const hpSegments = hp > 66 ? 3 : (hp > 33 ? 2 : (hp > 0 ? 1 : 0));
@@ -358,7 +364,9 @@ function updateShipVisuals(ship) {
 
 
 function fireBullet(s, ship) {
-  const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22, color = ship.getData('shipColor') || ship.getData('color');
+  const isO = s.time.now < ship.getData('overdriveUntil');
+  const color = isO ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
+  const x = ship.x + Math.cos(ship.rotation) * 22, y = ship.y + Math.sin(ship.rotation) * 22;
   const b = s.add.container(x, y); b.rotation = ship.rotation;
   const laser = s.add.rectangle(0, 0, 10, 2, color);
   const core = s.add.rectangle(0, 0, 8, 1, 0xffffff);
@@ -373,6 +381,7 @@ function fireSpecial(s, ship, enemy) {
   const type = ship.getData('spType'), count = ship.getData('spCount');
   if (!type || count <= 0) return;
   if (type === POWS.MISSILE) {
+    playSfx(s, 'launch');
     const mis = s.add.container(ship.x, ship.y); mis.rotation = ship.rotation;
     mis.add([s.add.graphics().lineStyle(2, C.missile).strokeTriangle(10, 0, -5, 5, -5, -5), s.add.graphics().fillStyle(C.missile, 0.3).fillCircle(-2, 0, 8)]);
     s.physics.add.existing(mis); mis.body.setCircle(8, -8, -8).setVelocity(Math.cos(ship.rotation) * 400, Math.sin(ship.rotation) * 400);
@@ -392,7 +401,11 @@ function fireSpecial(s, ship, enemy) {
 function updateMissiles(s, time) {
   s.missiles.children.each(m => {
     if (!m || !m.active || !m.body) return;
-    if (time > m.getData('expiry')) { explode(s, m.x, m.y, C.missile, 15); playSfx(s, 'hit'); safeDestroy(m); return; }
+    if (time > m.getData('expiry')) {
+      const x = m.x, y = m.y, owner = m.getData('owner');
+      safeDestroy(m); missileExplode(s, x, y, owner);
+      return;
+    }
 
     const ownerId = m.getData('owner');
     let target = null;
@@ -430,6 +443,8 @@ function updateMissiles(s, time) {
     const speed = m.getData('speed') || 450;
     const vx = Math.cos(m.rotation) * speed, vy = Math.sin(m.rotation) * speed;
     m.body.setVelocity(vx, vy);
+
+    if (time % 150 < 20) playSfx(s, 'thrum');
 
     if (time % 100 < 20) {
       const p = s.add.circle(m.x, m.y, 2, C.missile, 0.5);
@@ -766,10 +781,9 @@ function takeOrb(ship, orb) {
 }
 
 function hitFlareMissile(mis, fl) {
-  explode(this, mis.x, mis.y, C.missile, 12);
-  playSfx(this, 'hit');
-  safeDestroy(mis);
-  safeDestroy(fl);
+  const x = mis.x, y = mis.y, owner = mis.getData('owner');
+  safeDestroy(mis); safeDestroy(fl);
+  missileExplode(this, x, y, owner);
 }
 
 function safeDestroy(obj) {
@@ -785,9 +799,10 @@ function hitShip(bullet, ship) {
 }
 function hitShipMissile(missile, ship) {
   if (!missile.active || missile.getData('owner') === ship.id) return;
-  const owner = missile.getData('owner');
-  if (owner === 'p1' || owner === 'p2') addPoints(this, owner, 250, missile.x, missile.y);
-  safeDestroy(missile); dmgShip(this, ship, 30); explode(this, missile.x, missile.y, C.missile, 15);
+  const x = missile.x, y = missile.y, owner = missile.getData('owner');
+  if (owner === 'p1' || owner === 'p2') addPoints(this, owner, 250, x, y);
+  dmgShip(this, ship, 30); safeDestroy(missile);
+  missileExplode(this, x, y, owner, ship);
 }
 
 function hitEnemy(bullet, enemy) {
@@ -800,10 +815,9 @@ function hitEnemy(bullet, enemy) {
 
 function hitEnemyMissile(missile, enemy) {
   if (!missile.active || missile.getData('owner') === 'boss') return;
-  const owner = missile.getData('owner');
-  safeDestroy(missile);
-  dmgEnemy(this, enemy, 30, owner);
-  explode(this, missile.x, missile.y, C.missile, 15);
+  const x = missile.x, y = missile.y, owner = missile.getData('owner');
+  safeDestroy(missile); dmgEnemy(this, enemy, 30, owner);
+  missileExplode(this, x, y, owner, enemy);
 }
 
 function hitEnemyMeteor(enemy, meteor) {
@@ -860,15 +874,16 @@ function dmgEnemy(s, enemy, amt, owner) {
 function hitMeteor(bullet, meteor) {
   if (!meteor.active || (bullet && !bullet.active)) return;
   if (bullet && bullet.getData('color') === meteor.getData('color')) return;
-  const s = this;
+  const s = this, isM = bullet && s.missiles.contains(bullet), mX = meteor.x, mY = meteor.y;
+  let owner = null;
   if (bullet) {
     const sz = meteor.getData('size');
     const pts = sz >= 40 ? 50 : (sz >= 20 ? 150 : 300);
-    addPoints(s, bullet.getData('owner'), pts, meteor.x, meteor.y);
+    owner = bullet.getData('owner');
+    addPoints(s, owner, pts, mX, mY);
     safeDestroy(bullet);
-    // Impact Sparks
     for (let i = 0; i < 4; i++) {
-      const p = s.add.rectangle(meteor.x, meteor.y, 2, 2, C.white);
+      const p = s.add.rectangle(mX, mY, 2, 2, C.white);
       s.physics.add.existing(p);
       const a = rnd() * Math.PI * 2, spd = 200 + rnd() * 200;
       p.body.setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(800);
@@ -876,9 +891,11 @@ function hitMeteor(bullet, meteor) {
     }
   }
   const sz = meteor.getData('size');
-  explode(s, meteor.x, meteor.y, C.debris, sz / 8);
-  if (sz > 18) { spawnMeteor(s, meteor.x, meteor.y, sz / 2); spawnMeteor(s, meteor.x, meteor.y, sz / 2); }
-  safeDestroy(meteor); playSfx(s, 'hit');
+  explode(s, mX, mY, C.debris, sz / 8);
+  if (sz > 18) { spawnMeteor(s, mX, mY, sz / 2); spawnMeteor(s, mX, mY, sz / 2); }
+  safeDestroy(meteor);
+  if (isM) missileExplode(s, mX, mY, owner);
+  else playSfx(s, 'hit');
 }
 
 function crashShip(ship, meteor) {
@@ -960,7 +977,7 @@ function updateHud(s, ship, time) {
   if (sh) h.shInd.setAlpha(0.6 + Math.sin(time / 100) * 0.4);
 
   if (en !== h.lastEn || isOverdrive !== h.lastO) {
-    if (isOverdrive) h.enBar.setText(`!! OVERDRIVE_ACTIVE !!`).setTint(0xff00ff);
+    if (isOverdrive) h.enBar.setText(`!! OVERDRIVE_ACTIVE !!`).setTint(C.overdrive);
     else {
       const shots = Math.floor(en / 12);
       h.enBar.setText(`ENERGY: ${shots > 0 ? '█'.repeat(shots) : '---'} (${en}%)`).clearTint();
@@ -1052,16 +1069,10 @@ function updateRounds(s, time, delta) {
 
 function explode(s, x, y, color, count = 10) {
   for (let i = 0; i < count; i++) {
-    const p = s.particles.get();
-    if (!p) continue;
-    p.setActive(true).setVisible(true).setFillStyle(color, 1).setAlpha(1).setScale(1);
-    if (p.body) { p.body.enable = true; p.body.reset(x, y); }
-    const a = rnd() * Math.PI * 2, spd = 100 + rnd() * 200;
-    p.body.setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(200);
-    s.tweens.add({
-      targets: p, alpha: 0, scale: 0, duration: 600 + rnd() * 400,
-      onComplete: () => { p.setActive(false).setVisible(false); if (p.body) p.body.enable = false; }
-    });
+    const p = s.add.circle(x, y, 2 + rnd() * 3, color);
+    s.physics.add.existing(p);
+    p.body.setVelocity((rnd() - 0.5) * 400, (rnd() - 0.5) * 400).setDrag(200);
+    s.tweens.add({ targets: p, alpha: 0, scale: 0.1, duration: 500 + rnd() * 500, onComplete: () => p.destroy() });
   }
   if (count > 15) triggerGlitch(s);
 }
@@ -1075,6 +1086,35 @@ function triggerGlitch(s) {
     yoyo: true,
     repeat: 3,
     onComplete: () => { s.cameras.main.x = 0; }
+  });
+}
+
+function missileExplode(s, x, y, owner, directHit) {
+  explode(s, x, y, C.missile, 20);
+  playSfx(s, 'mExp');
+  [60, 100, 150].forEach((r, i) => {
+    const ring = s.add.circle(x, y, 10, C.missile, 0.3 - i * 0.1);
+    s.tweens.add({ targets: ring, radius: r, alpha: 0, duration: 400 + i * 200, onComplete: () => ring.destroy() });
+  });
+  const targets = [...s.ships.getChildren(), ...s.enemies.getChildren(), ...s.meteors.getChildren()];
+  targets.forEach(t => {
+    if (!t.active || t.getData('dead')) return;
+    const d = Phaser.Math.Distance.Between(x, y, t.x, t.y);
+    if (d > 150) return;
+    if (t === s.p1 || t === s.p2) {
+      if (t === directHit) return;
+      let dmg = d < 60 ? 20 : (d < 100 ? 10 : 5);
+      dmgShip(s, t, dmg);
+    } else {
+      let dmg = (d < 60 ? 20 : 0) + (d < 100 ? 10 : 0) + (d < 150 ? 5 : 0);
+      if (dmg > 0) {
+        if (s.meteors.contains(t)) {
+          explode(s, t.x, t.y, t.getData('color') || C.debris, 5); safeDestroy(t);
+        } else {
+          dmgEnemy(s, t, dmg, owner);
+        }
+      }
+    }
   });
 }
 
@@ -1644,6 +1684,15 @@ function playSfx(s, type) {
       case 'whoosh': osc.type = 'sawtooth'; swp(f, 400, 50, .3, 1); swp(ga, .05, .001, .3); break;
       case 'lock': osc.type = 'sine'; swp(f, 1500, 500, .1, 1); swp(ga, .1, .001, .1, 1); break;
       case 'boom': osc.type = 'sawtooth'; swp(f, 200, 20, .4, 1); swp(ga, .3, .001, .4, 1); break;
+      case 'launch': osc.type = 'sawtooth'; swp(f, 60, 400, .2, 1); swp(ga, .3, .001, .2, 1); break;
+      case 'thrum': osc.type = 'triangle'; swp(f, 100, 60, .15, 1); swp(ga, .08, .001, .15, 1); break;
+      case 'mExp': {
+        osc.type = 'sawtooth'; swp(f, 250, 10, .6, 1); swp(ga, .5, .001, .6, 1);
+        const o2 = ctx.createOscillator(), g2 = ctx.createGain(); o2.connect(g2); g2.connect(ctx.destination);
+        o2.type = 'sine'; swp(o2.frequency, 60, 20, .8, 1); swp(g2.gain, .3, .001, .8, 1);
+        o2.start(); o2.stop(ct + .8);
+        break;
+      }
       default: return;
     }
     osc.start(); osc.stop(ct + .4);
