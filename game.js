@@ -99,6 +99,18 @@ function create() {
   s.ships = s.add.group(); s.bullets = s.add.group(); s.meteors = s.add.group();
   s.orbs = s.add.group(); s.powerups = s.add.group(); s.missiles = s.add.group(); s.flares = s.add.group();
   s.enemies = s.add.group();
+  s.particles = s.add.group({
+    classType: Phaser.GameObjects.Rectangle,
+    maxSize: 100,
+    runChildUpdate: false
+  });
+  // Pre-create some particles for the pool
+  for(let i=0; i<100; i++) {
+    const p = s.add.rectangle(0, 0, 3, 3, 0xffffff);
+    s.physics.add.existing(p);
+    p.setActive(false).setVisible(false);
+    s.particles.add(p);
+  }
 
   s.p1 = createShip(s, 150, H / 2, 'p1', C.p1);
   s.p2 = createShip(s, W - 150, H / 2, 'p2', C.p2);
@@ -204,7 +216,7 @@ function createShip(s, x, y, id, color) {
 
   c.add([glow, reactor, wingLights, g]); s.physics.add.existing(c);
   c.body.setDrag(2000).setMaxVelocity(1200).setCircle(10, -10, -10).setCollideWorldBounds(true);
-
+  c.id = id; c.isP1 = id === 'p1';
   c.setData({ id, hp: 100, energy: 100, lastFire: 0, lastDash: 0, boostUntil: 0, lastHit: 0, color, shipColor: C.white, hasShield: false, dead: false, spType: null, spCount: 0, overdriveUntil: 0, overheated: false, mustRelease: false, reactor, wingLights });
 
   s.ships.add(c); return c;
@@ -930,26 +942,55 @@ function dmgShip(s, ship, amt) {
 
 
 function updateHud(s, ship, time) {
-  const id = ship.id, hp = ship.getData('hp'), en = ship.getData('energy'), ld = ship.getData('lastDash'), type = ship.getData('spType'), count = ship.getData('spCount'), score = s.state.scores[id], sh = ship.getData('hasShield');
+  const id = ship.id, h = s.hud[id];
+  const hp = Math.ceil(ship.getData('hp')), en = Math.floor(ship.getData('energy')), score = s.state.scores[id];
+  const sh = ship.getData('hasShield'), ld = ship.getData('lastDash');
+  const type = ship.getData('spType'), count = ship.getData('spCount');
   const isOverdrive = time < ship.getData('overdriveUntil');
-  const shots = Math.floor(en / 12);
-  s.hud[id].hp.setText(`${id.toUpperCase()} // HULL ${Math.ceil(hp)}%`);
-  s.hud[id].shInd.setVisible(sh).setAlpha(0.6 + Math.sin(time / 100) * 0.4);
-  if (isOverdrive) s.hud[id].enBar.setText(`!! OVERDRIVE_ACTIVE !!`).setTint(0xff00ff);
-  else s.hud[id].enBar.setText(`ENERGY: ${shots > 0 ? '█'.repeat(shots) : '---'} (${Math.ceil(en)}%)`).clearTint();
 
-  const dReady = Math.max(0, ld - time) <= 0;
-  const g = s.hud[id].dodgeInd; g.clear();
-  const ox = id === 'p1' ? 0 : -60;
-  g.lineStyle(1, 0x888888, 0.4).strokeRect(ox, 48, 60, 10);
-  if (dReady) g.fillStyle(C.dodge, 0.8).fillRect(ox + 2, 50, 56, 6);
-  else {
-    const pct = 1 - (ld - time) / 3000;
-    g.fillStyle(0x444444, 0.8).fillRect(ox + 2, 50, 56 * pct, 6);
+  if (hp !== h.lastHp) {
+    const hpCol = hp > 60 ? '#00ff66' : (hp > 30 ? '#ffcc00' : '#ff4422');
+    h.hp.setText(`${id.toUpperCase()} // HULL ${hp > 0 ? hp + '%' : 'TERMINATED'}`).setFill(hpCol);
+    h.lastHp = hp;
   }
 
-  s.hud[id].sp.setText(type ? `>> SP_WEAPON: ${type === POWS.MISSILE ? 'MISSILES' : (type === POWS.FLARE ? 'FLARES' : 'SHIELD')} [${count}]` : '');
-  s.hud[id].score.setText(`ARCHIVE: ${String(score).padStart(6, '0')}`);
+  if (sh !== h.lastSh) {
+    h.shInd.setVisible(sh);
+    h.lastSh = sh;
+  }
+  if (sh) h.shInd.setAlpha(0.6 + Math.sin(time / 100) * 0.4);
+
+  if (en !== h.lastEn || isOverdrive !== h.lastO) {
+    if (isOverdrive) h.enBar.setText(`!! OVERDRIVE_ACTIVE !!`).setTint(0xff00ff);
+    else {
+      const shots = Math.floor(en / 12);
+      h.enBar.setText(`ENERGY: ${shots > 0 ? '█'.repeat(shots) : '---'} (${en}%)`).clearTint();
+    }
+    h.lastEn = en; h.lastO = isOverdrive;
+  }
+
+  if (score !== h.lastScore) {
+    h.score.setText(`ARCHIVE: ${String(score).padStart(6, '0')}`);
+    h.lastScore = score;
+  }
+
+  if (type !== h.lastT || count !== h.lastC) {
+    h.sp.setText(type ? `>> SP_WEAPON: ${type === POWS.MISSILE ? 'MISSILES' : (type === POWS.FLARE ? 'FLARES' : 'SHIELD')} [${count}]` : '');
+    h.lastT = type; h.lastC = count;
+  }
+
+  const dReady = Math.max(0, ld - time) <= 0;
+  if (dReady !== h.lastD || !dReady) {
+    const g = h.dodgeInd; g.clear();
+    const ox = id === 'p1' ? 0 : -60;
+    g.lineStyle(1, 0x888888, 0.4).strokeRect(ox, 48, 60, 10);
+    if (dReady) g.fillStyle(C.dodge, 0.8).fillRect(ox + 2, 50, 56, 6);
+    else {
+      const pct = Math.max(0, 1 - (ld - time) / 3000);
+      g.fillStyle(0x444444, 0.8).fillRect(ox + 2, 50, 56 * pct, 6);
+    }
+    h.lastD = dReady;
+  }
 
 
   if (s.state.phase === 'playing') {
@@ -1012,13 +1053,17 @@ function updateRounds(s, time, delta) {
 
 function explode(s, x, y, color, count = 10) {
   for (let i = 0; i < count; i++) {
-    const p = s.add.rectangle(x, y, 3, 3, color);
-    s.physics.add.existing(p);
+    const p = s.particles.get();
+    if (!p) continue;
+    p.setActive(true).setVisible(true).setFillStyle(color, 1).setAlpha(1).setScale(1);
+    if (p.body) { p.body.enable = true; p.body.reset(x, y); }
     const a = rnd() * Math.PI * 2, spd = 100 + rnd() * 200;
     p.body.setVelocity(Math.cos(a) * spd, Math.sin(a) * spd).setDrag(200);
-    s.tweens.add({ targets: p, alpha: 0, scale: 0, duration: 600 + rnd() * 400, onComplete: () => p.destroy() });
+    s.tweens.add({
+      targets: p, alpha: 0, scale: 0, duration: 600 + rnd() * 400,
+      onComplete: () => { p.setActive(false).setVisible(false); if (p.body) p.body.enable = false; }
+    });
   }
-  // Screen Glitch Effect
   if (count > 15) triggerGlitch(s);
 }
 
@@ -1036,40 +1081,23 @@ function triggerGlitch(s) {
 
 function spawnTrail(s, ship) {
   const isOverdrive = s.time.now < ship.getData('overdriveUntil');
-  const hp = ship.getData('hp');
-  const color = isOverdrive ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
-
-  // 1. Fire Particle (Ejected from reactor)
-  const isSputtering = hp < 30 && (Math.floor(Date.now() / 100) % 2 === 0);
+  const hp = ship.getData('hp'), color = isOverdrive ? C.overdrive : (ship.getData('shipColor') || ship.getData('color'));
+  const isSputtering = hp < 30 && (Math.floor(s.time.now / 100) % 2 === 0);
   if (!isSputtering) {
-    const fX = ship.x - Math.cos(ship.rotation) * 10;
-    const fY = ship.y - Math.sin(ship.rotation) * 10;
-    const f = s.add.circle(fX, fY, 2.5, color, 0.8);
-    s.tweens.add({
-      targets: f,
-      x: fX - Math.cos(ship.rotation) * 20,
-      y: fY - Math.sin(ship.rotation) * 20,
-      scale: 0.1, alpha: 0, duration: 300,
-      onComplete: () => f.destroy()
-    });
+    const fX = ship.x - Math.cos(ship.rotation) * 10, fY = ship.y - Math.sin(ship.rotation) * 10;
+    const f = s.particles.get();
+    if (f) {
+      f.setActive(true).setVisible(true).setFillStyle(color, 0.8).setAlpha(1).setScale(1);
+      if (f.body) { f.body.enable = true; f.body.reset(fX, fY); }
+      s.tweens.add({ targets: f, x: fX - Math.cos(ship.rotation) * 20, y: fY - Math.sin(ship.rotation) * 20, scale: 0.1, alpha: 0, duration: 300, onComplete: () => { f.setActive(false).setVisible(false); if (f.body) f.body.enable = false; } });
+    }
   }
-
-  // 2. Smoke Particle (Adaptive based on HP)
-  if (hp < 80) {
-    const smokeChance = (80 - hp) / 70;
-    if (rnd() < smokeChance) {
-      const sm = s.add.circle(ship.x, ship.y, 3, color, 0.25);
-      const driftX = (rnd() - 0.5) * 40;
-      const driftY = (rnd() - 0.5) * 40;
-      s.tweens.add({
-        targets: sm,
-        x: ship.x + driftX,
-        y: ship.y + driftY,
-        scale: 4 + rnd() * 2,
-        alpha: 0,
-        duration: 800 + rnd() * 500,
-        onComplete: () => sm.destroy()
-      });
+  if (hp < 80 && rnd() < (80 - hp) / 70) {
+    const sm = s.particles.get();
+    if (sm) {
+      sm.setActive(true).setVisible(true).setFillStyle(color, 0.25).setAlpha(1).setScale(1);
+      if (sm.body) { sm.body.enable = true; sm.body.reset(ship.x, ship.y); }
+      s.tweens.add({ targets: sm, x: ship.x + (rnd() - 0.5) * 40, y: ship.y + (rnd() - 0.5) * 40, scale: 4 + rnd() * 2, alpha: 0, duration: 800 + rnd() * 500, onComplete: () => { sm.setActive(false).setVisible(false); if (sm.body) sm.body.enable = false; } });
     }
   }
 }
@@ -1097,7 +1125,8 @@ function initUi(s) {
       dodgeInd: s.add.graphics(),
       shInd: s.add.text(0, 65, '>> DEFENSE: [ SHIELD_UP ]', { ...sf, fill: cSh }).setVisible(false),
       sp: s.add.text(0, 85, '', { ...sf, fill: '#f22' }),
-      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP1 })
+      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP1 }),
+      lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
     p2: {
       hp: s.add.text(0, 0, 'P2 // HULL OK', { ...f, fill: cP2 }).setOrigin(1, 0),
@@ -1105,7 +1134,8 @@ function initUi(s) {
       dodgeInd: s.add.graphics(),
       shInd: s.add.text(0, 65, '[ SHIELD_UP ] :DEFENSE <<', { ...sf, fill: cSh }).setOrigin(1, 0).setVisible(false),
       sp: s.add.text(0, 85, '', { ...sf, fill: cP2 }).setOrigin(1, 0),
-      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP2 }).setOrigin(1, 0)
+      score: s.add.text(0, 105, 'ARCHIVE: 000000', { ...sf, fill: cP2 }).setOrigin(1, 0),
+      lastHp: -1, lastEn: -1, lastScore: -1, lastSh: null, lastT: null, lastC: -1, lastD: null, lastO: null
     },
     timer: s.add.text(W / 2, 25, '', { ...fb16, fill: '#888' }).setOrigin(0.5).setDepth(500)
   };
@@ -1263,8 +1293,7 @@ function showStartScreen(s) {
   s.scrName.c.setVisible(false);
   s.state.menu.cd = s.time.now + 500;
   s.controls.pressed = {};
-  Object.values(s.hud.p1).forEach(h => h.setVisible(false));
-  Object.values(s.hud.p2).forEach(h => h.setVisible(false));
+  [s.hud.p1, s.hud.p2].forEach(hSide => Object.values(hSide).forEach(h => h && h.setVisible && h.setVisible(false)));
   s.hud.timer.setVisible(false);
   updateScoreboardUi(s); updateMenu(s);
 }
@@ -1353,17 +1382,28 @@ function resetGame(s) {
   if (s.hud.showerAlert) { s.hud.showerAlert.clear(); }
 
   const isDuel = s.state.mode === 'duel';
-  Object.values(s.hud.p1).forEach(h => h.setVisible(true));
-  Object.values(s.hud.p2).forEach(h => h.setVisible(isDuel));
+  Object.values(s.hud.p1).forEach(h => h && h.setVisible && h.setVisible(true));
+  Object.values(s.hud.p2).forEach(h => h && h.setVisible && h.setVisible(isDuel));
   s.hud.timer.setVisible(true);
 
   s.state.scores = { p1: 0, p2: 0 }; s.state.round = 1; s.state.showerCount = 0; s.state.nextRoundTime = s.time.now + 25000;
-  s.state.spawnTimer = 0; s.state.orbTimer = s.time.now + 15000; s.state.powTimer = s.time.now + 10000; s.physics.resume(); s.controls.pressed = {};
+  s.state.spawnTimer = 0; s.state.orbTimer = s.time.now + 15000; s.state.powTimer = s.time.now + 10000; 
+  s.state.isShowerActive = false; s.state.showerPending = false; s.state.bossTension = 0;
+  if (s.state.goTimer) { s.state.goTimer.remove(); s.state.goTimer = null; }
+  
+  [s.hud.p1, s.hud.p2].forEach(h => {
+    h.lastHp = -1; h.lastEn = -1; h.lastScore = -1; h.lastSh = null; 
+    h.lastT = null; h.lastC = -1; h.lastD = null; h.lastO = null;
+  });
+
+  s.physics.resume(); s.controls.pressed = {};
   s.state.gameoverDone = false;
 }
 
 function endMatch(s) {
+  if (s.state.phase === 'gameover') return;
   s.state.phase = 'gameover'; s.physics.pause(); s.state.gameoverDone = false;
+  clearC(s.scrGameOver.c);
   const duration = s.time.now - s.state.startTime;
   const mins = Math.floor(duration / 60000), secs = Math.floor((duration % 60000) / 1000);
   const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -1390,8 +1430,9 @@ function endMatch(s) {
     const scoreVal = s.add.text(W / 2, 300, '000000', { ...fb72, fill: '#fff' }).setOrigin(0.5);
     s.scrGameOver.c.add([scoreLabel, scoreVal]);
 
+    if (s.state.goTimer) { s.state.goTimer.remove(); s.state.goTimer = null; }
     let cur = 0;
-    s.time.addEvent({
+    s.state.goTimer = s.time.addEvent({
       delay: 35,
       callback: () => {
         cur = Math.min(score, cur + Math.max(1, Math.floor(score / 35)));
@@ -1404,6 +1445,7 @@ function endMatch(s) {
           s.scrGameOver.c.add([timeInfo, prompt]);
           s.tweens.add({ targets: [timeInfo, prompt], alpha: 1, y: '+=10', duration: 500 });
           s.state.gameoverDone = true; s.state.isHS = isHS; s.state.winId = winId; s.state.score = score; s.state.timeStr = timeStr;
+          s.state.goTimer = null;
         }
       },
       repeat: 35
@@ -1587,23 +1629,20 @@ function playSfx(s, type) {
     const ctx = s.game.sound.context; if (!ctx) return;
     const osc = ctx.createOscillator(), g = ctx.createGain(); osc.connect(g); g.connect(ctx.destination);
     const ct = ctx.currentTime, f = osc.frequency, ga = g.gain;
-    const sV = (p, v, t) => p.setValueAtTime(v, t);
-    const eR = (p, v, t) => p.exponentialRampToValueAtTime(v, t);
-    const lR = (p, v, t) => p.linearRampToValueAtTime(v, t);
+    const swp = (p, v1, v2, d, e) => { p.setValueAtTime(v1, ct); if (e) p.exponentialRampToValueAtTime(v2, ct + d); else p.linearRampToValueAtTime(v2, ct + d); };
 
     switch (type) {
-      case 'pew': osc.type = 'triangle'; sV(f, 800, ct); eR(f, 100, ct + .1); sV(ga, .08, ct); break;
-      case 'dash': osc.type = 'sawtooth'; sV(f, 120, ct); eR(f, 1e3, ct + .12); sV(ga, .12, ct); break;
-      case 'hit': osc.type = 'square'; sV(f, 100, ct); lR(f, 10, ct + .1); sV(ga, .2, ct); lR(ga, 0, ct + .1); break;
-      case 'orb': osc.type = 'sine'; sV(f, 400, ct); eR(f, 1200, ct + .15); sV(ga, .1, ct); break;
-      case 'boost': osc.type = 'sawtooth'; sV(f, 400, ct); eR(f, 20, ct + .3); sV(ga, 0, ct); lR(ga, .4, ct + .03); eR(ga, .001, ct + .35); break;
-      case 'click': osc.type = 'square'; sV(f, 1500, ct); sV(ga, .02, ct); eR(ga, .001, ct + .03); osc.start(); osc.stop(ct + .03); return;
-      case 'whoosh': osc.type = 'sawtooth'; sV(f, 400, ct); eR(f, 50, ct + .3); sV(ga, .05, ct); lR(ga, 0, ct + .3); break;
-      case 'act': osc.type = 'square'; sV(f, 800, ct); eR(f, 1600, ct + .05); sV(ga, .1, ct); lR(ga, 0, ct + .05); break;
-      case 'lock': osc.type = 'square'; sV(f, 2000, ct); sV(ga, .15, ct); eR(ga, .001, ct + .04); break;
-      default: osc.type = 'sawtooth'; sV(f, 120, ct); sV(ga, .15, ct);
+      case 'pew': osc.type = 'triangle'; swp(f, 800, 100, .1, 1); swp(ga, .08, .001, .1, 1); break;
+      case 'dash': osc.type = 'sawtooth'; swp(f, 120, 1e3, .12, 1); swp(ga, .12, .001, .12, 1); break;
+      case 'hit': osc.type = 'square'; swp(f, 100, 10, .1); swp(ga, .2, .001, .1); break;
+      case 'orb': osc.type = 'sine'; swp(f, 400, 1200, .15, 1); swp(ga, .1, .001, .15, 1); break;
+      case 'boost': osc.type = 'sawtooth'; swp(f, 400, 20, .3, 1); ga.setValueAtTime(0, ct); ga.linearRampToValueAtTime(.4, ct + .03); ga.exponentialRampToValueAtTime(.001, ct + .35); break;
+      case 'click': osc.type = 'square'; swp(f, 1500, 1500, .03); swp(ga, .02, .001, .03, 1); break;
+      case 'whoosh': osc.type = 'sawtooth'; swp(f, 400, 50, .3, 1); swp(ga, .05, .001, .3); break;
+      case 'lock': osc.type = 'sine'; swp(f, 1500, 500, .1, 1); swp(ga, .1, .001, .1, 1); break;
+      default: return;
     }
-    osc.start(); osc.stop(ct + .5);
+    osc.start(); osc.stop(ct + .4);
   } catch (e) { }
 }
 
