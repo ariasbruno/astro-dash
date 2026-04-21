@@ -142,11 +142,6 @@ function createScanlines(s) {
   const g = s.add.graphics();
   g.lineStyle(1, C.black, 0.15);
   for (let y = 0; y < H; y += 3) g.lineBetween(0, y, W, y);
-
-  // Vignette
-  const v = s.add.graphics();
-  v.fillStyle(C.black, 0.4);
-  v.fillGradientStyle(C.black, C.black, C.black, C.black, 0, 0, 0.3, 0.3);
   return g;
 }
 
@@ -224,40 +219,39 @@ function createShip(s, x, y, id, color) {
 }
 
 function updateShips(s, time, delta) {
-  const cfg = [{ ship: s.p1, enemy: s.p2, u: 'P1_U', d: 'P1_D', l: 'P1_L', r: 'P1_R', f1: 'P1_1', f2: 'P1_2', f3: 'P1_3', dL: 'P1_4', dR: 'P1_5', sp: 'P1_6' },
-  { ship: s.p2, enemy: s.p1, u: 'P2_U', d: 'P2_D', l: 'P2_L', r: 'P2_R', f1: 'P2_1', f2: 'P2_2', f3: 'P2_3', dL: 'P2_4', dR: 'P2_5', sp: 'P2_6' }];
-  cfg.forEach(p => {
-    if (p.ship.getData('dead')) return;
-    if (s.state.mode === 'solo' && !p.ship.isP1) return;
-    const b = p.ship.body, curE = p.ship.getData('energy');
+  [s.p1, s.p2].forEach((ship, i) => {
+    if (ship.getData('dead')) return;
+    if (s.state.mode === 'solo' && !ship.isP1) return;
+    const p = i === 0 ? 'P1' : 'P2', opp = i === 0 ? s.p2 : s.p1;
+    const b = ship.body, curE = ship.getData('energy');
 
-    const isSolo = s.state.mode === 'solo' && p.ship === s.p1;
-    let vx = (held(s, p.r) || (isSolo && held(s, 'P2_R')) ? 1 : 0) - (held(s, p.l) || (isSolo && held(s, 'P2_L')) ? 1 : 0);
-    let vy = (held(s, p.d) || (isSolo && held(s, 'P2_D')) ? 1 : 0) - (held(s, p.u) || (isSolo && held(s, 'P2_U')) ? 1 : 0);
+    const isSolo = s.state.mode === 'solo' && ship === s.p1;
+    let vx = (held(s, p + '_R') || (isSolo && held(s, 'P2_R')) ? 1 : 0) - (held(s, p + '_L') || (isSolo && held(s, 'P2_L')) ? 1 : 0);
+    let vy = (held(s, p + '_D') || (isSolo && held(s, 'P2_D')) ? 1 : 0) - (held(s, p + '_U') || (isSolo && held(s, 'P2_U')) ? 1 : 0);
     const speed = b.speed;
     if (vx !== 0 || vy !== 0) {
       const a = Math.atan2(vy, vx);
-      p.ship.rotation = a;
+      ship.rotation = a;
       if (speed < 400) s.physics.velocityFromRotation(a, 320, b.velocity);
-      if (time % 60 < 20) spawnTrail(s, p.ship);
+      if (time % 60 < 20) spawnTrail(s, ship);
     }
 
     // Color Fire Logic (Buttons 1, 2, 3)
-    const fs = isSolo ? [p.f1, p.f2, p.f3, 'P2_1', 'P2_2', 'P2_3'] : [p.f1, p.f2, p.f3];
-    const isOverdrive = time < p.ship.getData('overdriveUntil');
-    const isFiring = fs.some(k => held(s, k)), isOverheated = p.ship.getData('overheated');
-    const mustRelease = p.ship.getData('mustRelease');
+    const fs = isSolo ? [p + '_1', p + '_2', p + '_3', 'P2_1', 'P2_2', 'P2_3'] : [p + '_1', p + '_2', p + '_3'];
+    const isOverdrive = time < ship.getData('overdriveUntil');
+    const isFiring = fs.some(k => held(s, k)), isOverheated = ship.getData('overheated');
+    const mustRelease = ship.getData('mustRelease');
 
-    if (!isFiring) p.ship.setData('mustRelease', false);
+    if (!isFiring) ship.setData('mustRelease', false);
 
     let actuallyFired = false;
     if (isFiring && !isOverheated && !mustRelease) {
       fs.forEach((fKey, i) => {
         if (held(s, fKey)) {
-          p.ship.setData('shipColor', SHIP_C[i % 3]);
-          if (time > p.ship.getData('lastFire') && (isOverdrive || curE >= 12)) {
-            fireBullet(s, p.ship); p.ship.setData('lastFire', time + 140);
-            if (!isOverdrive) p.ship.setData('energy', Math.max(0, curE - 12));
+          ship.setData('shipColor', SHIP_C[i % 3]);
+          if (time > ship.getData('lastFire') && (isOverdrive || curE >= 12)) {
+            fireBullet(s, ship); ship.setData('lastFire', time + 140);
+            if (!isOverdrive) ship.setData('energy', Math.max(0, curE - 12));
             actuallyFired = true;
           }
         }
@@ -265,36 +259,36 @@ function updateShips(s, time, delta) {
     }
 
     if (!actuallyFired) {
-      p.ship.setData('energy', Math.min(100, curE + delta * 0.045));
+      ship.setData('energy', Math.min(100, curE + delta * 0.045));
     }
 
     if (!isOverdrive && curE < 12 && isFiring && !isOverheated) {
-      p.ship.setData({ overheated: true, mustRelease: true }); playSfx(s, 'hit');
+      ship.setData({ overheated: true, mustRelease: true }); playSfx(s, 'hit');
     }
-    if (curE >= 50) p.ship.setData('overheated', false);
+    if (curE >= 50) ship.setData('overheated', false);
 
     // Boost Logic (Button 4)
-    const boostTriggered = consume(s, isSolo ? [p.dL, 'P2_4'] : [p.dL]);
-    if (boostTriggered && time > p.ship.getData('lastDash')) {
-      s.physics.velocityFromRotation(p.ship.rotation, 1200, b.velocity);
-      p.ship.setData('lastDash', time + 3000);
-      p.ship.setData('boostUntil', time + 200);
-      playSfx(s, 'boost'); explode(s, p.ship.x, p.ship.y, C.dodge, 4);
+    const boostTriggered = consume(s, isSolo ? [p + '_4', 'P2_4'] : [p + '_4']);
+    if (boostTriggered && time > ship.getData('lastDash')) {
+      s.physics.velocityFromRotation(ship.rotation, 1200, b.velocity);
+      ship.setData('lastDash', time + 3000);
+      ship.setData('boostUntil', time + 200);
+      playSfx(s, 'boost'); explode(s, ship.x, ship.y, C.dodge, 4);
     }
 
     // Special / Shield Logic (Button 6)
-    if (consume(s, isSolo ? [p.sp, 'P2_6'] : [p.sp])) {
-      const type = p.ship.getData('spType');
+    if (consume(s, isSolo ? [p + '_6', 'P2_6'] : [p + '_6'])) {
+      const type = ship.getData('spType');
       if (type === POWS.SHIELD) {
-        p.ship.setData({ hasShield: true, spType: null, spCount: 0 });
+        ship.setData({ hasShield: true, spType: null, spCount: 0 });
         playSfx(s, 'act');
       } else {
-        fireSpecial(s, p.ship, p.enemy);
+        fireSpecial(s, ship, opp);
       }
     }
-    updateHud(s, p.ship, time);
-    updateShipVisuals(p.ship);
-    if (p.ship.getData('hasShield')) drawShield(s, p.ship);
+    updateHud(s, ship, time);
+    updateShipVisuals(ship);
+    if (ship.getData('hasShield')) drawShield(s, ship);
   });
 }
 
@@ -1540,7 +1534,7 @@ function clearC(c, k = 2) { const l = c.list; for (let i = l.length - 1; i >= k;
 function returnToStart(s) { clearC(s.scrGameOver.c); showStartScreen(s); }
 function pauseMatch(s) { s.state.phase = 'paused'; s.physics.pause(); clearC(s.scrGeneric.c); s.scrGeneric.c.setVisible(true); s.scrGeneric.t.setText('PAUSED'); s.controls.pressed = {}; }
 function resumeMatch(s) { s.state.phase = 'playing'; s.physics.resume(); s.scrGeneric.c.setVisible(false); }
-function showLeaderboard(s) { /* Unused - rankings are now integrated into start screen */ }
+
 function showHelp(s) {
   s.state.phase = 'help';
   s.scrStart.c.setVisible(false);
@@ -1609,15 +1603,13 @@ function initControls(s) {
     rev[finalKey] = a;
   }));
   window.onkeydown = (e) => {
-    if (e.key === 'Escape') { k.pressed['ESC'] = true; k.held['ESC'] = true; return; }
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const a = rev[key];
-    if (a) { if (!k.held[a]) k.pressed[a] = true; k.held[a] = true; }
+    if (a) { e.preventDefault(); if (!k.held[a]) k.pressed[a] = true; k.held[a] = true; }
   };
   window.onkeyup = (e) => {
-    if (e.key === 'Escape') { k.held['ESC'] = false; return; }
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    const a = rev[key]; if (a) k.held[a] = false;
+    const a = rev[key]; if (a) { e.preventDefault(); k.held[a] = false; }
   };
   s.controls = k;
 }
@@ -1641,6 +1633,7 @@ function playSfx(s, type) {
       case 'click': osc.type = 'square'; swp(f, 1500, 1500, .03); swp(ga, .02, .001, .03, 1); break;
       case 'whoosh': osc.type = 'sawtooth'; swp(f, 400, 50, .3, 1); swp(ga, .05, .001, .3); break;
       case 'lock': osc.type = 'sine'; swp(f, 1500, 500, .1, 1); swp(ga, .1, .001, .1, 1); break;
+      case 'boom': osc.type = 'sawtooth'; swp(f, 200, 20, .4, 1); swp(ga, .3, .001, .4, 1); break;
       default: return;
     }
     osc.start(); osc.stop(ct + .4);
