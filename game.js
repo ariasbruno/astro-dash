@@ -62,10 +62,19 @@ function preload() { }
 function create() {
   S = this;
   S.state = {
-    phase: 'loading', mode: 'solo', scores: { p1: 0, p2: 0 }, highScoresSolo: [], highScoresDuel: [], menu: { cursor: 0, cd: 0 },
-    nameEntry: { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner: '', score: 0, cd: 0, timeStr: '' },
-    spawnTimer: 0, orbTimer: 0, powTimer: 0, round: 1, showerCount: 0, nextRoundTime: 0, startTime: 0,
-    showerPending: false, isShowerActive: false, bossTension: 0
+    phase: 'loading', mode: 'solo', scores: { p1: 0, p2: 0 }, menu: { cursor: 0, cd: 0 }, round: 1,
+    hSS: [], // highScoresSolo
+    hSD: [], // highScoresDuel
+    nE: { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner: '', score: 0, cd: 0, timeStr: '' }, // nameEntry
+    sT: 0, // spawnTimer
+    oT: 0, // orbTimer
+    pT: 0, // powTimer
+    sC: 0, // showerCount
+    nRT: 0, // nextRoundTime
+    stT: 0, // startTime
+    sP: false, // showerPending
+    iSA: false, // isShowerActive
+    bT: 0 // bossTension
   };
 
   const gridG = S.add.graphics();
@@ -133,8 +142,8 @@ function create() {
   initUi();initControls();
   S.add.container(0, 0).add(createScanlines()).setDepth(2000).setScrollFactor(0);
   loadHighScores().then(hs => {
-    S.state.highScoresSolo = hs.solo;
-    S.state.highScoresDuel = hs.duel;
+    S.state.hSS = hs.solo;
+    S.state.hSD = hs.duel;
     showStartScreen();
   });
 }
@@ -506,7 +515,7 @@ function spawnPowerup() {
 }
 
 
-function updatePowerups(time) { if (time > S.state.powTimer) { spawnPowerup(); S.state.powTimer = time + 15000 + rnd() * 10000; } }
+function updatePowerups(time) { if (time > S.state.pT) { spawnPowerup(); S.state.pT = time + 15000 + rnd() * 10000; } }
 
 function takePowerup(ship, pow) {
   if (!pow.active || ship.dead) return;
@@ -561,7 +570,7 @@ function spawnMeteor(x, y, size = 40, color = C.debris) {
 
 
 function updateMeteors(time) {
-  if (S.state.showerPending) {
+  if (S.state.sP) {
     if (!S.hud.clearMsg) {
       S.hud.clearMsg = TX(S, W / 2, H - 50, '>>> ALERT: CLEAR SECTOR OF ALL REMAINING HAZARDS <<<', 'b20', '#ff4400', 0.5).setDepth(300);
       S.tweens.add({ targets: S.hud.clearMsg, alpha: 0.3, duration: 400, yoyo: true, repeat: -1 });
@@ -570,19 +579,19 @@ function updateMeteors(time) {
     S.meteors.getChildren().forEach(m => { if (m && m.active && m.size > 25) hasBig = true; });
     if (!hasBig) {
       if (S.hud.clearMsg) { S.hud.clearMsg.destroy(); S.hud.clearMsg = null; }
-      S.state.showerPending = false; S.state.isShowerActive = true; S.state.showerCount++;
+      S.state.sP = false; S.state.iSA = true; S.state.sC++;
       const msg = TX(S, W / 2, H / 2 - 100, '!!! METEOR SHOWER !!!', 'b36', '#ff0', 0.5).setDepth(300);
       S.time.delayedCall(2000, () => msg.destroy());
     }
   }
 
-  const timeRemainingInRound = S.state.nextRoundTime - time;
+  const timeRemainingInRound = S.state.nRT - time;
   const isSpawningPhase = timeRemainingInRound > 12500;
 
   const speedMult = 1 + Math.floor((S.state.round - 1) / 5) * 0.25;
-  if (time > S.state.spawnTimer) {
-    if (S.state.isShowerActive) {
-      const poolSize = Math.min(4, Math.floor((S.state.showerCount - 1) / 2) + 1);
+  if (time > S.state.sT) {
+    if (S.state.iSA) {
+      const poolSize = Math.min(4, Math.floor((S.state.sC - 1) / 2) + 1);
       const spawnDirIndex = Math.floor(time / 2000) % poolSize;
       updateShowerAlert(time, poolSize);
 
@@ -599,10 +608,10 @@ function updateMeteors(time) {
       const m = spawnMeteor(x, y, 15 + rnd() * 15);
       if (m) m.isShower = true;
       if (m && m.body) m.body.setVelocity(vx, vy);
-      S.state.spawnTimer = time + 160;
+      S.state.sT = time + 160;
     } else {
       if (S.hud.showerAlert) S.hud.showerAlert.clear();
-      if (!S.state.showerPending && isSpawningPhase) {
+      if (!S.state.sP && isSpawningPhase) {
         const numAdditionalColors = Math.min(3, Math.max(0, S.state.round - 1));
         const available = [C.white];
         for (let i = 0; i < numAdditionalColors; i++) available.push(SHIP_C[i]);
@@ -610,15 +619,15 @@ function updateMeteors(time) {
         spawnMeteor(undefined, undefined, 40, color);
         const capped = Math.min(4, S.state.round);
         const delay = Math.max(400, 2500 - (capped * 400));
-        S.state.spawnTimer = time + delay;
+        S.state.sT = time + delay;
       }
     }
-    if (S.state.isShowerActive && rnd() > 0.95) playSfx('whoosh');
+    if (S.state.iSA && rnd() > 0.95) playSfx('whoosh');
   }
 
   S.meteors.getChildren().forEach(m => {
     if (m && m.active && (m.x < -100 || m.x > W + 100 || m.y < -100 || m.y > H + 100)) {
-      if (!S.state.showerPending && !S.state.isShowerActive && !m.isShower) {
+      if (!S.state.sP && !S.state.iSA && !m.isShower) {
         S.physics.world.wrap(m, 60);
       } else {
         m.destroy();
@@ -640,7 +649,7 @@ function spawnOrb() {
   S.time.delayedCall(8000, () => { if (c.active) safeDestroy(c); });
 }
 
-function updateOrbs(time) { if (time > S.state.orbTimer) { spawnOrb(); S.state.orbTimer = time + 12000 + rnd() * 8000; } }
+function updateOrbs(time) { if (time > S.state.oT) { spawnOrb(); S.state.oT = time + 12000 + rnd() * 8000; } }
 
 function spawnBoss() {
   const startY = 100 + rnd() * (H - 200);
@@ -756,7 +765,7 @@ function spawnBoss() {
 
   const tx = tween({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { 
     if (boss.active) {
-      tween({ targets: S.state, bossTension: 0, duration: 2000, ease: 'Power2' });
+      tween({ targets: S.state, bT: 0, duration: 2000, ease: 'Power2' });
       boss.destroy(); 
     }
   } });
@@ -893,7 +902,7 @@ function dmgEnemy(enemy, amt, owner) {
 
     addPoints(owner, 1000, x + 80, y + 50);
     spectacularExplosion(x + 80, y + 50, 0xff3344);
-    S.tweens.add({ targets: S.state, bossTension: 0, duration: 2000, ease: 'Power2' });
+    S.tweens.add({ targets: S.state, bT: 0, duration: 2000, ease: 'Power2' });
     enemy.destroy();
   }
 }
@@ -1039,10 +1048,10 @@ function updateHud(ship, time) {
 
 
   if (S.state.phase === 'playing') {
-    const elapsed = S.time.now - S.state.startTime;
+    const elapsed = S.time.now - S.state.stT;
     const mins = Math.floor(elapsed / 60000), secs = Math.floor((elapsed % 60000) / 1000);
     const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    const remaining = Math.max(0, Math.ceil((S.state.nextRoundTime - time) / 1000));
+    const remaining = Math.max(0, Math.ceil((S.state.nRT - time) / 1000));
 
     if (S.state.mode === 'solo') {
       S.hud.timer.setText(`TIME ${timeStr} // ROUND ${S.state.round} (NEXT ${remaining}s)`);
@@ -1065,17 +1074,17 @@ function addPoints(id, amt, x, y) {
 }
 
 function updateRounds(time, delta) {
-  if (S.state.showerPending) {
-    S.state.nextRoundTime += delta;
+  if (S.state.sP) {
+    S.state.nRT += delta;
     return;
   }
 
-  if (time > S.state.nextRoundTime) {
+  if (time > S.state.nRT) {
     S.state.round++;
-    S.state.nextRoundTime = time + 25000;
-    S.state.spawnTimer = time + 1000;
-    S.state.isShowerActive = false;
-    S.state.showerPending = false;
+    S.state.nRT = time + 25000;
+    S.state.sT = time + 1000;
+    S.state.iSA = false;
+    S.state.sP = false;
     const bonus = S.state.round * 500;
     addPoints('p1', bonus);
     if (S.state.mode === 'duel') addPoints('p2', bonus);
@@ -1086,11 +1095,11 @@ function updateRounds(time, delta) {
     S.time.delayedCall(2000, () => S.tweens.add({ targets: msg, alpha: 0, scale: 1.5, duration: 500, onComplete: () => msg.destroy() }));
 
     if (S.state.mode === 'solo' && S.state.round % 3 === 0) {
-      S.tweens.add({ targets: S.state, bossTension: 1, duration: 2500, ease: 'Power2' });
+      S.tweens.add({ targets: S.state, bT: 1, duration: 2500, ease: 'Power2' });
       S.time.delayedCall(3000, () => spawnBoss());
     }
     if (S.state.round >= 5 && (S.state.round - 5) % 4 === 0) {
-      S.state.showerPending = true;
+      S.state.sP = true;
     }
     playSfx('dash');
   }
@@ -1366,8 +1375,8 @@ function showStartScreen() {
   updateScoreboardUi(); updateMenu();
 }
 function updateScoreboardUi() {
-  const solo = S.state.highScoresSolo;
-  const duel = S.state.highScoresDuel;
+  const solo = S.state.hSS;
+  const duel = S.state.hSD;
 
   const soloTxt = solo.length ? solo.slice(0, 5).map((e, i) => `${i + 1}. ${e.name.padEnd(3)} ${String(e.score).padStart(6, '0')}\n${e.time || '00:00'}`).join('\n\n') : 'NO DATA FOUND';
   const duelTxt = duel.length ? duel.slice(0, 5).map((e, i) => `${i + 1}. ${e.name.padEnd(3)} ${String(e.score).padStart(6, '0')}`).join('\n\n') : 'NO DATA FOUND';
@@ -1434,7 +1443,7 @@ function startMatch() {
 }
 
 function resetGame() {
-  S.state.startTime = S.time.now;
+  S.state.stT = S.time.now;
   S.ships.children.iterate(ship => {
     const isP2 = !ship.isP1;
     const active = S.state.mode === 'duel' || !isP2;
@@ -1457,9 +1466,9 @@ function resetGame() {
   Object.values(S.hud.p2).forEach(h => h && h.setVisible && h.setVisible(isDuel));
   S.hud.timer.setVisible(true);
 
-  S.state.scores = { p1: 0, p2: 0 }; S.state.round = 1; S.state.showerCount = 0; S.state.nextRoundTime = S.time.now + 25000;
-  S.state.spawnTimer = 0; S.state.orbTimer = S.time.now + 15000; S.state.powTimer = S.time.now + 10000; 
-  S.state.isShowerActive = false; S.state.showerPending = false; S.state.bossTension = 0;
+  S.state.scores = { p1: 0, p2: 0 }; S.state.round = 1; S.state.sC = 0; S.state.nRT = S.time.now + 25000;
+  S.state.sT = 0; S.state.oT = S.time.now + 15000; S.state.pT = S.time.now + 10000; 
+  S.state.iSA = false; S.state.sP = false; S.state.bT = 0;
   if (S.state.goTimer) { S.state.goTimer.remove(); S.state.goTimer = null; }
   
   [S.hud.p1, S.hud.p2].forEach(h => {
@@ -1475,7 +1484,7 @@ function endMatch() {
   if (S.state.phase === 'gameover') return;
   S.state.phase = 'gameover'; S.physics.pause(); S.state.gameoverDone = false;
   clearC(S.scrGameOver.c);
-  const duration = S.time.now - S.state.startTime;
+  const duration = S.time.now - S.state.stT;
   const mins = Math.floor(duration / 60000), secs = Math.floor((duration % 60000) / 1000);
   const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
@@ -1485,7 +1494,7 @@ function endMatch() {
     score = S.state.scores[winId];
   }
 
-  const hsList = S.state.mode === 'solo' ? S.state.highScoresSolo : S.state.highScoresDuel;
+  const hsList = S.state.mode === 'solo' ? S.state.hSS : S.state.hSD;
   const isHS = hsList.length < 10 || score > (hsList.length ? hsList[hsList.length - 1].score : -1);
 
   if (S.state.mode === 'solo') {
@@ -1535,7 +1544,7 @@ function endMatch() {
 
 function showNameEntry(winner, score, timeStr) {
   S.state.phase = 'nameEntry';
-  S.state.nameEntry = { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner, score, timeStr, cd: 0, confirming: false };
+  S.state.nE = { name: ['A', 'A', 'A'], idx: 0, cIdx: 0, winner, score, timeStr, cd: 0, confirming: false };
   S.scrName.c.setVisible(true);
   S.scrName.confirmMsg.setVisible(false);
   S.scrName.help.setVisible(true);
@@ -1544,7 +1553,7 @@ function showNameEntry(winner, score, timeStr) {
 }
 
 function updateNameEntryUi() {
-  const e = S.state.nameEntry;
+  const e = S.state.nE;
   S.scrName.chars.forEach((t, i) => {
     t.setText(e.name[i]);
     t.setFill(e.confirming ? '#ffcc00' : (i === e.idx ? cA : '#fff'));
@@ -1561,7 +1570,7 @@ function updateNameEntryUi() {
 }
 
 function handleNameEntry(time) {
-  const e = S.state.nameEntry; if (time < e.cd) return;
+  const e = S.state.nE; if (time < e.cd) return;
   const dy = (held('P1_D') || held('P2_D') ? 1 : 0) - (held('P1_U') || held('P2_U') ? 1 : 0);
   const dx = (held('P1_R') || held('P2_R') ? 1 : 0) - (held('P1_L') || held('P2_L') ? 1 : 0);
   const ok = consume(['START1', 'START2']);
@@ -1577,8 +1586,8 @@ function handleNameEntry(time) {
     }
     if (ok) {
       saveHighScore(e.name.join(''), e.score, e.timeStr, S.state.mode).then(hs => {
-        if (S.state.mode === 'solo') S.state.highScoresSolo = hs;
-        else S.state.highScoresDuel = hs;
+        if (S.state.mode === 'solo') S.state.hSS = hs;
+        else S.state.hSD = hs;
         S.scrName.c.setVisible(false);
         showStartScreen();
       });
@@ -1796,7 +1805,7 @@ function updateMusic(time) {
     S.mState = { beat: 0 };
     S.musicTimer = S.time.addEvent({ delay: 150, loop: true, callback: () => tickMusic() });
   }
-  const bt = S.state.bossTension || 0;
+  const bt = S.state.bT || 0;
   const tension = bt > 0.5 || (S.enemies && S.enemies.countActive() > 0) || (S.p1.hp < 25);
   S.musicTimer.delay = tension ? 120 : 150;
   const targetFreq = Math.max(40 + bt * 15, (S.p1.hp < 25) ? 55 : 40);
@@ -1806,7 +1815,7 @@ function updateMusic(time) {
 function tickMusic() {
   const ctx = S.game.sound.context; if (!ctx || !S.mState) return;
   const b = S.mState.beat, round = S.state.round;
-  const bt = S.state.bossTension || 0;
+  const bt = S.state.bT || 0;
   const lowHp = S.p1.hp < 25;
 
   // Villain Bass (Dissonant & Low) - Fades in/out
