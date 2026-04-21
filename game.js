@@ -1629,7 +1629,13 @@ function playSfx(s, type) {
     const swp = (p, v1, v2, d, e) => { p.setValueAtTime(v1, ct); if (e) p.exponentialRampToValueAtTime(v2, ct + d); else p.linearRampToValueAtTime(v2, ct + d); };
 
     switch (type) {
-      case 'pew': osc.type = 'triangle'; swp(f, 800, 100, .1, 1); swp(ga, .08, .001, .1, 1); break;
+      case 'pew': {
+        osc.type = 'triangle'; swp(f, 2400, 200, .1, 1); swp(ga, .2, .001, .1, 1);
+        const o2 = ctx.createOscillator(), g2 = ctx.createGain(); o2.connect(g2); g2.connect(ctx.destination);
+        o2.type = 'sawtooth'; swp(o2.frequency, 120, 20, .12, 1); swp(g2.gain, .15, .001, .12, 1);
+        o2.start(); o2.stop(ct + .12);
+        break;
+      }
       case 'dash': osc.type = 'sawtooth'; swp(f, 120, 1e3, .12, 1); swp(ga, .12, .001, .12, 1); break;
       case 'hit': osc.type = 'square'; swp(f, 100, 10, .1); swp(ga, .2, .001, .1); break;
       case 'orb': osc.type = 'sine'; swp(f, 400, 1200, .15, 1); swp(ga, .1, .001, .15, 1); break;
