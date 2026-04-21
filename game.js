@@ -25,6 +25,8 @@ const C = {
   energy: 0xfacc15, dodge: 0x6366f1, missile: 0xff4422, flare: 0xff9900, shield: 0x00ccff, overdrive: 0xff5d00
 };
 const rnd = (m) => Math.random() * (m || 1), rB = Phaser.Math.Between;
+const dist = Phaser.Math.Distance.Between, tween = (c) => S.tweens.add(c);
+const delay = (ms, cb) => S.time.delayedCall(ms, cb), addPhys = (o) => S.physics.add.existing(o);
 const SHIP_C = [0x00f2ff, 0xff00ea, 0xfbff00]; // Cyan, Magenta, Yellow
 
 
@@ -66,15 +68,13 @@ function create() {
     showerPending: false, isShowerActive: false, bossTension: 0
   };
 
-  // Parallax Layer 1: Infinite Moving Grid
-  S.bgGrid = S.add.tileSprite(W / 2, H / 2, W, H, null);
   const gridG = S.add.graphics();
   gridG.lineStyle(1, C.frame, 0.2);
   for (let x = 0; x <= 80; x += 40) gridG.lineBetween(x, 0, x, 40);
   for (let y = 0; y <= 80; y += 40) gridG.lineBetween(0, y, 40, y);
-  const gridTex = gridG.generateTexture('grid', 40, 40);
+  gridG.generateTexture('grid', 40, 40);
   gridG.destroy();
-  S.bgGrid.setTexture('grid').setAlpha(0.3).setDepth(-10);
+  S.bgGrid = S.add.tileSprite(W / 2, H / 2, W, H, 'grid').setAlpha(0.3).setDepth(-10);
 
   // Parallax Layer 2: Deep Space Stars
   S.starsFar = [];
@@ -737,13 +737,13 @@ function spawnBoss() {
   S.time.addEvent({
     delay: 2500, loop: true, callback: () => {
       if (!boss.active || boss.dead || S.state.phase !== 'playing') return;
-      const dist = Phaser.Math.Distance.Between(boss.x + 80, boss.y + 50, S.p1.x, S.p1.y);
-      if (dist < 450) {
+      const dst = dist(boss.x + 80, boss.y + 50, S.p1.x, S.p1.y);
+      if (dst < 450) {
         for (let i = 0; i < 3; i++) {
-          S.time.delayedCall(i * 120, () => {
+          delay(i * 120, () => {
             if (!boss.active || boss.dead) return;
             const b = S.add.circle(boss.x + 160, boss.y + 50, 4, nRed);
-            S.physics.add.existing(b);
+            addPhys(b);
             const angle = Phaser.Math.Angle.Between(boss.x + 160, boss.y + 50, S.p1.x, S.p1.y);
             S.physics.velocityFromRotation(angle, 550, b.body.velocity);
             Object.assign(b, { owner: 'boss', color: nRed });
@@ -754,9 +754,9 @@ function spawnBoss() {
     }
   });
 
-  const tx = S.tweens.add({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { 
+  const tx = tween({ targets: boss, x: W + 200, duration: 6000, ease: 'Linear', onComplete: () => { 
     if (boss.active) {
-      S.tweens.add({ targets: S.state, bossTension: 0, duration: 2000, ease: 'Power2' });
+      tween({ targets: S.state, bossTension: 0, duration: 2000, ease: 'Power2' });
       boss.destroy(); 
     }
   } });
